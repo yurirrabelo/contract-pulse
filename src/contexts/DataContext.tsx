@@ -11,6 +11,10 @@ import {
   ExpiringContractsGroup,
   StackDistribution,
   ClientSummary,
+  AllocationTimelineEntry,
+  TeamView,
+  OccupancyForecast,
+  ProfessionalIdleForecast,
 } from '@/types';
 import { saveToStorage, loadFromStorage, generateId, getContractStatus, getDaysUntil } from '@/lib/storage';
 import {
@@ -37,6 +41,9 @@ interface DataContextType {
   expiringContractsGroups: ExpiringContractsGroup[];
   stackDistributions: StackDistribution[];
   clientSummaries: ClientSummary[];
+  allocationTimeline: AllocationTimelineEntry[];
+  teamViews: TeamView[];
+  occupancyForecasts: OccupancyForecast[];
 
   // CRUD Operations
   addClient: (client: Omit<Client, 'id' | 'createdAt'>) => Client;
@@ -170,7 +177,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const groups: ExpiringContractsGroup[] = [];
 
     [30, 60, 90].forEach((days) => {
-      const statusKey = `expiring_${days}` as const;
       const contractsInGroup = contractsWithDetails.filter(c => {
         if (days === 30) return c.status === 'expiring_30';
         if (days === 60) return c.status === 'expiring_30' || c.status === 'expiring_60';
@@ -236,6 +242,156 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       };
     });
   }, [clients, contractsWithDetails]);
+
+  // Computed: Allocation Timeline
+  const allocationTimeline = useMemo<AllocationTimelineEntry[]>(() => {
+    return allocations.map(allocation => {
+      const professional = getProfessionalById(allocation.professionalId);
+      const position = getPositionById(allocation.positionId);
+      const contract = position ? getContractById(position.contractId) : null;
+      const client = contract ? getClientById(contract.clientId) : null;
+      const stack = position ? getStackById(position.stackId) : null;
+
+      if (!professional || !position || !contract || !client || !stack) return null;
+
+      return {
+        id: allocation.id,
+        professionalId: allocation.professionalId,
+        professionalName: professional.name,
+        positionTitle: position.title,
+        stackName: stack.name,
+        stackCategory: stack.category,
+        clientName: client.name,
+        projectName: contract.projectName || contract.contractNumber,
+        contractType: contract.type,
+        startDate: allocation.startDate,
+        endDate: allocation.endDate || position.endDate,
+        allocationPercentage: allocation.allocationPercentage,
+      };
+    }).filter(Boolean) as AllocationTimelineEntry[];
+  }, [allocations, getProfessionalById, getPositionById, getContractById, getClientById, getStackById]);
+
+  // Computed: Team Views
+  const teamViews = useMemo<TeamView[]>(() => {
+    return contractsWithDetails.map(contract => {
+      const contractAllocations = allocations.filter(a => {
+        const position = getPositionById(a.positionId);
+        return position?.contractId === contract.id;
+      });
+
+      const members = contractAllocations.map(allocation => {
+        const professional = getProfessionalById(allocation.professionalId);
+        const position = getPositionById(allocation.positionId);
+        const stack = position ? getStackById(position.stackId) : null;
+
+        if (!professional || !position || !stack) return null;
+
+        return {
+          professionalId: allocation.professionalId,
+          professionalName: professional.name,
+          positionTitle: position.title,
+          stackName: stack.name,
+          stackCategory: stack.category,
+          startDate: allocation.startDate,
+          endDate: allocation.endDate || position.endDate,
+          allocationPercentage: allocation.allocationPercentage,
+        };
+      }).filter(Boolean) as TeamView['members'];
+
+      return {
+        contractId: contract.id,
+        contractNumber: contract.contractNumber,
+        projectName: contract.projectName || contract.contractNumber,
+        clientName: contract.client.name,
+        contractType: contract.type,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        status: contract.status,
+        daysUntilExpiration: contract.daysUntilExpiration,
+        members,
+        totalPositions: contract.positions.length,
+        filledPositions: contract.positions.filter(p => p.status === 'filled').length,
+      };
+    });
+  }, [contractsWithDetails, allocations, getProfessionalById, getPositionById, getStackById]);
+
+  // Computed: Occupancy Forecasts
+  const occupancyForecasts = useMemo<OccupancyForecast[]>(() => {
+    const today = new Date();
+    const forecasts: OccupancyForecast[] = [];
+
+    [30, 60, 90].forEach((days) => {
+      const cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() + days);
+
+      // Find allocations ending within this period
+      const endingAllocations = allocations.filter(a => {
+        if (!a.endDate) {
+          // Check position end date
+          const position = getPositionById(a.positionId);
+          if (!position) return false;
+          const endDate = new Date(position.endDate);
+          return endDate <= cutoffDate && endDate >= today;
+        }
+        const endDate = new Date(a.endDate);
+        return endDate <= cutoffDate && endDate >= today;
+      });
+
+      const predictedIdleProfessionals: ProfessionalIdleForecast[] = endingAllocations.map(a => {
+        const professional = getProfessionalById(a.professionalId);
+        const position = getPositionById(a.positionId);
+        const contract = position ? getContractById(position.contractId) : null;
+        const client = contract ? getClientById(contract.clientId) : null;
+        const stack = professional ? getStackById(professional.primaryStackId) : null;
+        
+        const endDate = a.endDate || (position?.endDate || '');
+        const daysUntilIdle = Math.ceil((new Date(endDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        return {
+          professionalId: a.professionalId,
+          professionalName: professional?.name || '',
+          stackName: stack?.name || '',
+          currentClientName: client?.name || '',
+          currentProjectName: contract?.projectName || contract?.contractNumber || '',
+          allocationEndDate: endDate,
+          daysUntilIdle,
+        };
+      }).filter(p => p.professionalName);
+
+      // Remove duplicates (same professional might have multiple allocations)
+      const uniqueProfessionals = Array.from(
+        new Map(predictedIdleProfessionals.map(p => [p.professionalId, p])).values()
+      );
+
+      // Sort by days until idle
+      uniqueProfessionals.sort((a, b) => a.daysUntilIdle - b.daysUntilIdle);
+
+      // Calculate current allocated count
+      const currentAllocated = new Set(
+        allocations
+          .filter(a => {
+            const endDate = a.endDate || getPositionById(a.positionId)?.endDate;
+            return endDate && new Date(endDate) >= today;
+          })
+          .map(a => a.professionalId)
+      ).size;
+
+      const predictedIdle = uniqueProfessionals.length;
+      const occupancyRate = professionals.length > 0 
+        ? ((currentAllocated - predictedIdle) / professionals.length) * 100 
+        : 0;
+
+      forecasts.push({
+        period: days as 30 | 60 | 90,
+        currentAllocated,
+        predictedIdle,
+        predictedIdleProfessionals: uniqueProfessionals,
+        occupancyRate: Math.max(0, occupancyRate),
+      });
+    });
+
+    return forecasts;
+  }, [allocations, professionals, getProfessionalById, getPositionById, getContractById, getClientById, getStackById]);
 
   // CRUD Operations
   const addClient = useCallback((client: Omit<Client, 'id' | 'createdAt'>) => {
@@ -360,6 +516,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         expiringContractsGroups,
         stackDistributions,
         clientSummaries,
+        allocationTimeline,
+        teamViews,
+        occupancyForecasts,
         addClient,
         updateClient,
         deleteClient,

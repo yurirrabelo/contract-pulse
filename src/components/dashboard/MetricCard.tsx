@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
+import { ReactNode } from 'react';
 
 interface MetricCardProps {
   title: string;
   value: string | number;
-  subtitle?: string;
+  subtitle?: string | ReactNode;
   icon?: LucideIcon;
   trend?: {
     value: number;
@@ -43,7 +44,11 @@ export function MetricCard({
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+          typeof subtitle === 'string' ? (
+            <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+          ) : (
+            <div className="mt-1">{subtitle}</div>
+          )
         )}
         {trend && (
           <p

@@ -24,6 +24,7 @@ const navItems = [
   { path: '/contracts', label: 'Contratos', icon: FileText },
   { path: '/positions', label: 'Vagas', icon: Briefcase },
   { path: '/professionals', label: 'Profissionais', icon: UserCircle },
+  { path: '/teams', label: 'Times', icon: Users },
   { path: '/stacks', label: 'Stacks', icon: Layers },
 ];
 

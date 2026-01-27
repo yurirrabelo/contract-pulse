@@ -14,6 +14,7 @@ import Contracts from "@/pages/Contracts";
 import Positions from "@/pages/Positions";
 import Professionals from "@/pages/Professionals";
 import Stacks from "@/pages/Stacks";
+import Teams from "@/pages/Teams";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
                   <Route path="/positions" element={<Positions />} />
                   <Route path="/professionals" element={<Professionals />} />
                   <Route path="/stacks" element={<Stacks />} />
+                  <Route path="/teams" element={<Teams />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />

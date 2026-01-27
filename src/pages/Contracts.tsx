@@ -77,6 +77,8 @@ export default function Contracts() {
   const [formData, setFormData] = useState({
     clientId: '',
     contractNumber: '',
+    projectName: '',
+    type: 'staffing' as 'staffing' | 'fabrica',
     startDate: '',
     endDate: '',
     monthlyValue: '',
@@ -100,6 +102,8 @@ export default function Contracts() {
       setFormData({
         clientId: contract.clientId,
         contractNumber: contract.contractNumber,
+        projectName: contract.projectName || '',
+        type: contract.type || 'staffing',
         startDate: contract.startDate,
         endDate: contract.endDate,
         monthlyValue: contract.monthlyValue.toString(),
@@ -109,6 +113,8 @@ export default function Contracts() {
       setFormData({
         clientId: '',
         contractNumber: '',
+        projectName: '',
+        type: 'staffing',
         startDate: '',
         endDate: '',
         monthlyValue: '',
@@ -132,6 +138,8 @@ export default function Contracts() {
     const contractData = {
       clientId: formData.clientId,
       contractNumber: formData.contractNumber,
+      projectName: formData.projectName,
+      type: formData.type,
       startDate: formData.startDate,
       endDate: formData.endDate,
       monthlyValue: parseFloat(formData.monthlyValue) || 0,
@@ -212,6 +220,34 @@ export default function Contracts() {
                           {client.name}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="projectName">Nome do Projeto</Label>
+                  <Input
+                    id="projectName"
+                    value={formData.projectName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, projectName: e.target.value })
+                    }
+                    placeholder="Nome do projeto"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="type">Tipo *</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(value: 'staffing' | 'fabrica') =>
+                      setFormData({ ...formData, type: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="staffing">Staffing</SelectItem>
+                      <SelectItem value="fabrica">Fábrica</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
