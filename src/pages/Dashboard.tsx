@@ -5,6 +5,8 @@ import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { StackDistributionChart } from '@/components/dashboard/StackDistributionChart';
 import { OccupancyRateCard } from '@/components/dashboard/OccupancyRateCard';
 import { ClientOverviewCard } from '@/components/dashboard/ClientOverviewCard';
+import { AllocationTimeline } from '@/components/dashboard/AllocationTimeline';
+import { OccupancyForecastCard } from '@/components/dashboard/OccupancyForecastCard';
 import { formatCurrency } from '@/lib/storage';
 import { 
   FileText, 
@@ -13,7 +15,9 @@ import {
   Briefcase,
   TrendingUp,
   AlertCircle,
+  Factory,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function Dashboard() {
   const {
@@ -21,7 +25,14 @@ export default function Dashboard() {
     expiringContractsGroups,
     stackDistributions,
     clientSummaries,
+    allocationTimeline,
+    occupancyForecasts,
+    contracts,
+    professionals,
   } = useData();
+
+  const staffingContracts = contracts.filter(c => c.type === 'staffing').length;
+  const fabricaContracts = contracts.filter(c => c.type === 'fabrica').length;
 
   return (
     <div className="space-y-8">
@@ -34,11 +45,22 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
         <MetricCard
           title="Contratos Ativos"
           value={dashboardMetrics.activeContracts}
-          subtitle={`de ${dashboardMetrics.totalContracts} total`}
+          subtitle={
+            <div className="flex gap-2 mt-1">
+              <Badge variant="outline" className="text-xs">
+                <Briefcase className="h-3 w-3 mr-1" />
+                {staffingContracts} Staffing
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                <Factory className="h-3 w-3 mr-1" />
+                {fabricaContracts} Fábrica
+              </Badge>
+            </div>
+          }
           icon={FileText}
           variant="primary"
         />
@@ -52,6 +74,13 @@ export default function Dashboard() {
           title="Profissionais"
           value={dashboardMetrics.totalProfessionals}
           icon={Users}
+          variant="default"
+        />
+        <MetricCard
+          title="Vagas"
+          value={`${dashboardMetrics.filledPositions}/${dashboardMetrics.totalPositions}`}
+          subtitle="preenchidas"
+          icon={Briefcase}
           variant="default"
         />
         <MetricCard
@@ -83,17 +112,26 @@ export default function Dashboard() {
         revenueAtRisk90={dashboardMetrics.revenueAtRisk90}
       />
 
-      {/* Analytics Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Occupancy Rate */}
+      {/* Occupancy Forecast - NEW */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <OccupancyForecastCard 
+          forecasts={occupancyForecasts} 
+          totalProfessionals={professionals.length} 
+        />
         <OccupancyRateCard
           totalPositions={dashboardMetrics.totalPositions}
           filledPositions={dashboardMetrics.filledPositions}
           openPositions={dashboardMetrics.openPositions}
         />
+      </div>
 
+      {/* Allocation Timeline - NEW */}
+      <AllocationTimeline allocations={allocationTimeline} />
+
+      {/* Analytics Grid */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Stack Distribution */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <StackDistributionChart distributions={stackDistributions} />
         </div>
       </div>

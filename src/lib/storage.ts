@@ -1,10 +1,32 @@
 // LocalStorage persistence utilities
 
 const STORAGE_PREFIX = 'contract_manager_';
+const SCHEMA_VERSION_KEY = 'contract_manager_schema_version';
+const CURRENT_SCHEMA_VERSION = 2; // Increment when schema changes
 
 export function getStorageKey(key: string): string {
   return `${STORAGE_PREFIX}${key}`;
 }
+
+// Check and migrate schema version
+function checkSchemaVersion(): void {
+  try {
+    const storedVersion = localStorage.getItem(SCHEMA_VERSION_KEY);
+    const currentVersion = parseInt(storedVersion || '0', 10);
+    
+    if (currentVersion < CURRENT_SCHEMA_VERSION) {
+      // Clear old data when schema changes
+      clearAllStorage();
+      localStorage.setItem(SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VERSION.toString());
+      console.log('Schema updated, data reset to defaults');
+    }
+  } catch (error) {
+    console.error('Failed to check schema version:', error);
+  }
+}
+
+// Initialize schema check on module load
+checkSchemaVersion();
 
 export function saveToStorage<T>(key: string, data: T): void {
   try {

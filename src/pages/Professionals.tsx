@@ -73,6 +73,7 @@ export default function Professionals() {
     name: '',
     primaryStackId: '',
     secondaryStackIds: [] as string[],
+    status: 'idle' as 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice',
   });
 
   const filteredProfessionals = professionals.filter((professional) => {
@@ -96,6 +97,7 @@ export default function Professionals() {
         name: professional.name,
         primaryStackId: professional.primaryStackId,
         secondaryStackIds: professional.secondaryStackIds,
+        status: professional.status || 'idle',
       });
     } else {
       setEditingProfessional(null);
@@ -103,6 +105,7 @@ export default function Professionals() {
         name: '',
         primaryStackId: '',
         secondaryStackIds: [],
+        status: 'idle',
       });
     }
     setIsDialogOpen(true);

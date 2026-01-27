@@ -74,6 +74,7 @@ export default function Positions() {
     status: 'open' as 'open' | 'filled',
     startDate: '',
     endDate: '',
+    allocationPercentage: 100,
   });
 
   const filteredPositions = positions.filter((position) => {
@@ -100,6 +101,7 @@ export default function Positions() {
         status: position.status,
         startDate: position.startDate,
         endDate: position.endDate,
+        allocationPercentage: position.allocationPercentage || 100,
       });
     } else {
       setEditingPosition(null);
@@ -110,6 +112,7 @@ export default function Positions() {
         status: 'open',
         startDate: '',
         endDate: '',
+        allocationPercentage: 100,
       });
     }
     setIsDialogOpen(true);

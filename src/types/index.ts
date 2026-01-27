@@ -15,10 +15,14 @@ export interface Client {
   createdAt: string;
 }
 
+export type ContractType = 'staffing' | 'fabrica';
+
 export interface Contract {
   id: string;
   clientId: string;
   contractNumber: string;
+  projectName?: string; // Nome do projeto (especialmente para Fábrica)
+  type: ContractType;
   startDate: string;
   endDate: string;
   monthlyValue: number;
@@ -44,6 +48,7 @@ export interface Position {
   status: PositionStatus;
   startDate: string;
   endDate: string;
+  allocationPercentage: number; // % de alocação (100%, 50%, etc.)
   createdAt: string;
 }
 
@@ -52,6 +57,7 @@ export interface Professional {
   name: string;
   primaryStackId: string;
   secondaryStackIds: string[];
+  status: 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice';
   createdAt: string;
 }
 
@@ -61,6 +67,7 @@ export interface Allocation {
   positionId: string;
   startDate: string;
   endDate: string | null;
+  allocationPercentage: number; // % de alocação nesta posição
   createdAt: string;
 }
 
@@ -111,4 +118,65 @@ export interface ClientSummary {
   totalPositions: number;
   filledPositions: number;
   totalMonthlyValue: number;
+}
+
+// Timeline/Gantt related types
+export interface AllocationTimelineEntry {
+  id: string;
+  professionalId: string;
+  professionalName: string;
+  positionTitle: string;
+  stackName: string;
+  stackCategory: StackCategory;
+  clientName: string;
+  projectName: string;
+  contractType: ContractType;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+}
+
+export interface TeamView {
+  contractId: string;
+  contractNumber: string;
+  projectName: string;
+  clientName: string;
+  contractType: ContractType;
+  startDate: string;
+  endDate: string;
+  status: ContractStatus;
+  daysUntilExpiration: number;
+  members: TeamMember[];
+  totalPositions: number;
+  filledPositions: number;
+}
+
+export interface TeamMember {
+  professionalId: string;
+  professionalName: string;
+  positionTitle: string;
+  stackName: string;
+  stackCategory: StackCategory;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+}
+
+// Occupancy forecast types
+export interface OccupancyForecast {
+  period: 30 | 60 | 90;
+  currentAllocated: number;
+  predictedIdle: number;
+  predictedIdleProfessionals: ProfessionalIdleForecast[];
+  occupancyRate: number;
+}
+
+export interface ProfessionalIdleForecast {
+  professionalId: string;
+  professionalName: string;
+  stackName: string;
+  currentClientName: string;
+  currentProjectName: string;
+  allocationEndDate: string;
+  daysUntilIdle: number;
 }
