@@ -2,7 +2,7 @@
 
 const STORAGE_PREFIX = 'contract_manager_';
 const SCHEMA_VERSION_KEY = 'contract_manager_schema_version';
-const CURRENT_SCHEMA_VERSION = 2; // Increment when schema changes
+const CURRENT_SCHEMA_VERSION = 3; // Increment when schema changes
 
 export function getStorageKey(key: string): string {
   return `${STORAGE_PREFIX}${key}`;

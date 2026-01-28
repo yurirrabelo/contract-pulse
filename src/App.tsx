@@ -15,6 +15,8 @@ import Positions from "@/pages/Positions";
 import Professionals from "@/pages/Professionals";
 import Stacks from "@/pages/Stacks";
 import Teams from "@/pages/Teams";
+import FactoryDashboard from "@/pages/FactoryDashboard";
+import FactoryProjects from "@/pages/FactoryProjects";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +43,8 @@ const App = () => (
                   <Route path="/professionals" element={<Professionals />} />
                   <Route path="/stacks" element={<Stacks />} />
                   <Route path="/teams" element={<Teams />} />
+                  <Route path="/factory" element={<FactoryDashboard />} />
+                  <Route path="/factory/projects" element={<FactoryProjects />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />

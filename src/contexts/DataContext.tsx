@@ -15,6 +15,14 @@ import {
   TeamView,
   OccupancyForecast,
   ProfessionalIdleForecast,
+  FactoryProject,
+  FactoryAllocation,
+  FactoryProjectWithDetails,
+  FactoryAllocationWithDetails,
+  FactoryDashboardMetrics,
+  FactoryIdleForecast,
+  FactoryIdleProfessional,
+  FactoryGanttEntry,
 } from '@/types';
 import { saveToStorage, loadFromStorage, generateId, getContractStatus, getDaysUntil } from '@/lib/storage';
 import {
@@ -24,6 +32,8 @@ import {
   seedPositions,
   seedProfessionals,
   seedAllocations,
+  seedFactoryProjects,
+  seedFactoryAllocations,
 } from '@/data/seedData';
 
 interface DataContextType {
@@ -34,6 +44,8 @@ interface DataContextType {
   positions: Position[];
   professionals: Professional[];
   allocations: Allocation[];
+  factoryProjects: FactoryProject[];
+  factoryAllocations: FactoryAllocation[];
 
   // Computed
   contractsWithDetails: ContractWithDetails[];
@@ -44,6 +56,12 @@ interface DataContextType {
   allocationTimeline: AllocationTimelineEntry[];
   teamViews: TeamView[];
   occupancyForecasts: OccupancyForecast[];
+  
+  // Factory computed
+  factoryProjectsWithDetails: FactoryProjectWithDetails[];
+  factoryMetrics: FactoryDashboardMetrics;
+  factoryIdleForecasts: FactoryIdleForecast[];
+  factoryGanttData: FactoryGanttEntry[];
 
   // CRUD Operations
   addClient: (client: Omit<Client, 'id' | 'createdAt'>) => Client;
@@ -70,6 +88,15 @@ interface DataContextType {
   updateAllocation: (id: string, allocation: Partial<Allocation>) => void;
   deleteAllocation: (id: string) => void;
 
+  // Factory CRUD
+  addFactoryProject: (project: Omit<FactoryProject, 'id' | 'createdAt'>) => FactoryProject;
+  updateFactoryProject: (id: string, project: Partial<FactoryProject>) => void;
+  deleteFactoryProject: (id: string) => void;
+
+  addFactoryAllocation: (allocation: Omit<FactoryAllocation, 'id' | 'createdAt'>) => FactoryAllocation;
+  updateFactoryAllocation: (id: string, allocation: Partial<FactoryAllocation>) => void;
+  deleteFactoryAllocation: (id: string) => void;
+
   // Helpers
   getClientById: (id: string) => Client | undefined;
   getContractById: (id: string) => Contract | undefined;
@@ -90,6 +117,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [factoryProjects, setFactoryProjects] = useState<FactoryProject[]>([]);
+  const [factoryAllocations, setFactoryAllocations] = useState<FactoryAllocation[]>([]);
 
   // Load data from storage on mount
   useEffect(() => {
@@ -99,6 +128,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setPositions(loadFromStorage('positions', seedPositions));
     setProfessionals(loadFromStorage('professionals', seedProfessionals));
     setAllocations(loadFromStorage('allocations', seedAllocations));
+    setFactoryProjects(loadFromStorage('factoryProjects', seedFactoryProjects));
+    setFactoryAllocations(loadFromStorage('factoryAllocations', seedFactoryAllocations));
   }, []);
 
   // Persist to storage on changes
@@ -108,6 +139,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (positions.length) saveToStorage('positions', positions); }, [positions]);
   useEffect(() => { if (professionals.length) saveToStorage('professionals', professionals); }, [professionals]);
   useEffect(() => { if (allocations.length) saveToStorage('allocations', allocations); }, [allocations]);
+  useEffect(() => { if (factoryProjects.length) saveToStorage('factoryProjects', factoryProjects); }, [factoryProjects]);
+  useEffect(() => { if (factoryAllocations.length) saveToStorage('factoryAllocations', factoryAllocations); }, [factoryAllocations]);
 
   // Helpers
   const getClientById = useCallback((id: string) => clients.find(c => c.id === id), [clients]);
@@ -324,10 +357,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const cutoffDate = new Date(today);
       cutoffDate.setDate(cutoffDate.getDate() + days);
 
-      // Find allocations ending within this period
       const endingAllocations = allocations.filter(a => {
         if (!a.endDate) {
-          // Check position end date
           const position = getPositionById(a.positionId);
           if (!position) return false;
           const endDate = new Date(position.endDate);
@@ -358,15 +389,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         };
       }).filter(p => p.professionalName);
 
-      // Remove duplicates (same professional might have multiple allocations)
       const uniqueProfessionals = Array.from(
         new Map(predictedIdleProfessionals.map(p => [p.professionalId, p])).values()
       );
 
-      // Sort by days until idle
       uniqueProfessionals.sort((a, b) => a.daysUntilIdle - b.daysUntilIdle);
 
-      // Calculate current allocated count
       const currentAllocated = new Set(
         allocations
           .filter(a => {
@@ -393,7 +421,218 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return forecasts;
   }, [allocations, professionals, getProfessionalById, getPositionById, getContractById, getClientById, getStackById]);
 
-  // CRUD Operations
+  // ============================================
+  // FACTORY COMPUTED VALUES
+  // ============================================
+
+  // Factory Projects with Details
+  const factoryProjectsWithDetails = useMemo<FactoryProjectWithDetails[]>(() => {
+    const today = new Date();
+    
+    return factoryProjects.map(project => {
+      const client = project.clientId ? getClientById(project.clientId) : undefined;
+      const projectAllocations = factoryAllocations
+        .filter(a => a.projectId === project.id)
+        .map(a => {
+          const professional = getProfessionalById(a.professionalId);
+          const stack = getStackById(a.stackId);
+          if (!professional || !stack) return null;
+          return { ...a, professional, stack } as FactoryAllocationWithDetails;
+        })
+        .filter(Boolean) as FactoryAllocationWithDetails[];
+
+      const startDate = new Date(project.startDate);
+      const endDate = new Date(project.endDate);
+      const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const daysElapsed = Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+      const calculatedProgress = Math.min(100, (daysElapsed / totalDays) * 100);
+
+      return {
+        ...project,
+        client,
+        allocations: projectAllocations,
+        totalMembers: projectAllocations.length,
+        daysRemaining,
+        daysElapsed,
+        totalDays,
+        calculatedProgress,
+      };
+    });
+  }, [factoryProjects, factoryAllocations, getClientById, getProfessionalById, getStackById]);
+
+  // Factory Dashboard Metrics
+  const factoryMetrics = useMemo<FactoryDashboardMetrics>(() => {
+    const today = new Date();
+    const activeProjects = factoryProjectsWithDetails.filter(p => p.status === 'in_progress');
+    const plannedProjects = factoryProjectsWithDetails.filter(p => p.status === 'planned');
+    const finishedProjects = factoryProjectsWithDetails.filter(p => p.status === 'finished');
+    const pausedProjects = factoryProjectsWithDetails.filter(p => p.status === 'paused');
+
+    // Get factory-eligible professionals
+    const factoryProfessionals = professionals.filter(
+      p => p.workMode === 'factory' || p.workMode === 'both'
+    );
+
+    // Currently allocated in factory
+    const currentlyAllocated = new Set(
+      factoryAllocations
+        .filter(a => {
+          const start = new Date(a.startDate);
+          const end = new Date(a.endDate);
+          return start <= today && end >= today;
+        })
+        .map(a => a.professionalId)
+    );
+
+    const currentOccupancyRate = factoryProfessionals.length > 0
+      ? (currentlyAllocated.size / factoryProfessionals.length) * 100
+      : 0;
+
+    // Calculate future occupancy
+    const calcOccupancy = (days: number) => {
+      const futureDate = new Date(today);
+      futureDate.setDate(futureDate.getDate() + days);
+      
+      const allocatedAtDate = new Set(
+        factoryAllocations
+          .filter(a => {
+            const start = new Date(a.startDate);
+            const end = new Date(a.endDate);
+            return start <= futureDate && end >= futureDate;
+          })
+          .map(a => a.professionalId)
+      );
+
+      return factoryProfessionals.length > 0
+        ? (allocatedAtDate.size / factoryProfessionals.length) * 100
+        : 0;
+    };
+
+    return {
+      totalProjects: factoryProjects.length,
+      activeProjects: activeProjects.length,
+      plannedProjects: plannedProjects.length,
+      finishedProjects: finishedProjects.length,
+      pausedProjects: pausedProjects.length,
+      totalFactoryProfessionals: currentlyAllocated.size,
+      currentOccupancyRate,
+      occupancy30Days: calcOccupancy(30),
+      occupancy60Days: calcOccupancy(60),
+      occupancy90Days: calcOccupancy(90),
+    };
+  }, [factoryProjectsWithDetails, factoryProjects, factoryAllocations, professionals]);
+
+  // Factory Idle Forecasts
+  const factoryIdleForecasts = useMemo<FactoryIdleForecast[]>(() => {
+    const today = new Date();
+    const forecasts: FactoryIdleForecast[] = [];
+
+    const factoryProfessionals = professionals.filter(
+      p => p.workMode === 'factory' || p.workMode === 'both'
+    );
+
+    [30, 60, 90].forEach((days) => {
+      const cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() + days);
+
+      // Find allocations ending within this period
+      const endingAllocations = factoryAllocations.filter(a => {
+        const endDate = new Date(a.endDate);
+        return endDate <= cutoffDate && endDate >= today;
+      });
+
+      const idleProfessionals: FactoryIdleProfessional[] = endingAllocations.map(a => {
+        const professional = getProfessionalById(a.professionalId);
+        const project = factoryProjects.find(p => p.id === a.projectId);
+        const stack = professional ? getStackById(professional.primaryStackId) : null;
+        
+        const daysUntilIdle = Math.ceil((new Date(a.endDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        return {
+          professionalId: a.professionalId,
+          professionalName: professional?.name || '',
+          stackName: stack?.name || '',
+          currentProjectName: project?.name || '',
+          allocationEndDate: a.endDate,
+          daysUntilIdle,
+        };
+      }).filter(p => p.professionalName);
+
+      // Remove duplicates
+      const uniqueProfessionals = Array.from(
+        new Map(idleProfessionals.map(p => [p.professionalId, p])).values()
+      );
+
+      uniqueProfessionals.sort((a, b) => a.daysUntilIdle - b.daysUntilIdle);
+
+      // Current allocated count
+      const currentAllocated = new Set(
+        factoryAllocations
+          .filter(a => {
+            const start = new Date(a.startDate);
+            const end = new Date(a.endDate);
+            return start <= today && end >= today;
+          })
+          .map(a => a.professionalId)
+      ).size;
+
+      const predictedIdle = uniqueProfessionals.length;
+      const occupancyRate = factoryProfessionals.length > 0
+        ? ((currentAllocated - predictedIdle) / factoryProfessionals.length) * 100
+        : 0;
+
+      forecasts.push({
+        period: days as 30 | 60 | 90,
+        currentAllocated,
+        predictedIdle,
+        idleProfessionals: uniqueProfessionals,
+        occupancyRate: Math.max(0, occupancyRate),
+      });
+    });
+
+    return forecasts;
+  }, [factoryAllocations, factoryProjects, professionals, getProfessionalById, getStackById]);
+
+  // Factory Gantt Data
+  const factoryGanttData = useMemo<FactoryGanttEntry[]>(() => {
+    const entries: FactoryGanttEntry[] = [];
+
+    // Add projects
+    factoryProjectsWithDetails.forEach(project => {
+      entries.push({
+        id: project.id,
+        type: 'project',
+        name: project.name,
+        startDate: project.startDate,
+        endDate: project.endDate,
+        progress: project.progressPercentage,
+        status: project.status,
+      });
+
+      // Add professionals for this project
+      project.allocations.forEach(alloc => {
+        entries.push({
+          id: `${alloc.id}-${project.id}`,
+          type: 'professional',
+          name: alloc.professional.name,
+          projectId: project.id,
+          projectName: project.name,
+          role: alloc.role,
+          stackName: alloc.stack.name,
+          startDate: alloc.startDate,
+          endDate: alloc.endDate,
+        });
+      });
+    });
+
+    return entries;
+  }, [factoryProjectsWithDetails]);
+
+  // ============================================
+  // CRUD OPERATIONS
+  // ============================================
+
   const addClient = useCallback((client: Omit<Client, 'id' | 'createdAt'>) => {
     const newClient: Client = {
       ...client,
@@ -502,6 +741,45 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setAllocations(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  // Factory CRUD
+  const addFactoryProject = useCallback((project: Omit<FactoryProject, 'id' | 'createdAt'>) => {
+    const newProject: FactoryProject = {
+      ...project,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setFactoryProjects(prev => [...prev, newProject]);
+    return newProject;
+  }, []);
+
+  const updateFactoryProject = useCallback((id: string, updates: Partial<FactoryProject>) => {
+    setFactoryProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  }, []);
+
+  const deleteFactoryProject = useCallback((id: string) => {
+    setFactoryProjects(prev => prev.filter(p => p.id !== id));
+    // Also delete related allocations
+    setFactoryAllocations(prev => prev.filter(a => a.projectId !== id));
+  }, []);
+
+  const addFactoryAllocation = useCallback((allocation: Omit<FactoryAllocation, 'id' | 'createdAt'>) => {
+    const newAllocation: FactoryAllocation = {
+      ...allocation,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setFactoryAllocations(prev => [...prev, newAllocation]);
+    return newAllocation;
+  }, []);
+
+  const updateFactoryAllocation = useCallback((id: string, updates: Partial<FactoryAllocation>) => {
+    setFactoryAllocations(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+  }, []);
+
+  const deleteFactoryAllocation = useCallback((id: string) => {
+    setFactoryAllocations(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   return (
     <DataContext.Provider
       value={{
@@ -511,6 +789,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         positions,
         professionals,
         allocations,
+        factoryProjects,
+        factoryAllocations,
         contractsWithDetails,
         dashboardMetrics,
         expiringContractsGroups,
@@ -519,6 +799,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         allocationTimeline,
         teamViews,
         occupancyForecasts,
+        factoryProjectsWithDetails,
+        factoryMetrics,
+        factoryIdleForecasts,
+        factoryGanttData,
         addClient,
         updateClient,
         deleteClient,
@@ -537,6 +821,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         addAllocation,
         updateAllocation,
         deleteAllocation,
+        addFactoryProject,
+        updateFactoryProject,
+        deleteFactoryProject,
+        addFactoryAllocation,
+        updateFactoryAllocation,
+        deleteFactoryAllocation,
         getClientById,
         getContractById,
         getStackById,
