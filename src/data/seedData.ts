@@ -1,4 +1,4 @@
-import { Client, Contract, Stack, Position, Professional, Allocation, User } from '@/types';
+import { Client, Contract, Stack, Position, Professional, Allocation, User, FactoryProject, FactoryAllocation } from '@/types';
 import { generateId } from '@/lib/storage';
 
 // Helper to create dates relative to today
@@ -132,36 +132,67 @@ export const seedPositions: Position[] = [
   { id: 'pos-33', contractId: 'contract-12', title: 'React Developer', stackId: 'stack-1', status: 'filled', startDate: daysAgo(80), endDate: daysFromNow(265), allocationPercentage: 100, createdAt: daysAgo(80) },
 ];
 
-// Seed Professionals with status
+// Seed Professionals with status and workMode
 export const seedProfessionals: Professional[] = [
-  { id: 'prof-1', name: 'Ana Beatriz Silva', primaryStackId: 'stack-1', secondaryStackIds: ['stack-12'], status: 'allocated', createdAt: daysAgo(350) },
-  { id: 'prof-2', name: 'Carlos Eduardo Santos', primaryStackId: 'stack-11', secondaryStackIds: ['stack-1', 'stack-2'], status: 'allocated', createdAt: daysAgo(340) },
-  { id: 'prof-3', name: 'Maria Fernanda Costa', primaryStackId: 'stack-6', secondaryStackIds: ['stack-7'], status: 'allocated', createdAt: daysAgo(330) },
-  { id: 'prof-4', name: 'João Pedro Oliveira', primaryStackId: 'stack-12', secondaryStackIds: ['stack-1', 'stack-2'], status: 'allocated', createdAt: daysAgo(320) },
-  { id: 'prof-5', name: 'Luciana Almeida', primaryStackId: 'stack-5', secondaryStackIds: [], status: 'partial', createdAt: daysAgo(310) },
-  { id: 'prof-6', name: 'Roberto Lima', primaryStackId: 'stack-4', secondaryStackIds: ['stack-3'], status: 'allocated', createdAt: daysAgo(300) },
-  { id: 'prof-7', name: 'Fernanda Rodrigues', primaryStackId: 'stack-3', secondaryStackIds: ['stack-2'], status: 'allocated', createdAt: daysAgo(290) },
-  { id: 'prof-8', name: 'Marcos Vinícius', primaryStackId: 'stack-2', secondaryStackIds: ['stack-1'], status: 'allocated', createdAt: daysAgo(280) },
-  { id: 'prof-9', name: 'Patricia Souza', primaryStackId: 'stack-10', secondaryStackIds: ['stack-9'], status: 'partial', createdAt: daysAgo(270) },
-  { id: 'prof-10', name: 'Ricardo Mendes', primaryStackId: 'stack-1', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(260) },
-  { id: 'prof-11', name: 'Camila Ferreira', primaryStackId: 'stack-8', secondaryStackIds: ['stack-9'], status: 'partial', createdAt: daysAgo(250) },
-  { id: 'prof-12', name: 'Bruno Carvalho', primaryStackId: 'stack-2', secondaryStackIds: ['stack-5'], status: 'allocated', createdAt: daysAgo(240) },
-  { id: 'prof-13', name: 'Juliana Martins', primaryStackId: 'stack-5', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(230) },
-  { id: 'prof-14', name: 'André Nascimento', primaryStackId: 'stack-4', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(220) },
-  { id: 'prof-15', name: 'Tatiana Ribeiro', primaryStackId: 'stack-9', secondaryStackIds: ['stack-8'], status: 'allocated', createdAt: daysAgo(210) },
-  { id: 'prof-16', name: 'Felipe Gomes', primaryStackId: 'stack-3', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(200) },
-  { id: 'prof-17', name: 'Amanda Dias', primaryStackId: 'stack-6', secondaryStackIds: ['stack-7'], status: 'allocated', createdAt: daysAgo(190) },
-  { id: 'prof-18', name: 'Gustavo Pereira', primaryStackId: 'stack-11', secondaryStackIds: ['stack-1'], status: 'allocated', createdAt: daysAgo(180) },
-  { id: 'prof-19', name: 'Renata Castro', primaryStackId: 'stack-1', secondaryStackIds: ['stack-12'], status: 'allocated', createdAt: daysAgo(170) },
-  { id: 'prof-20', name: 'Diego Barbosa', primaryStackId: 'stack-4', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(160) },
-  { id: 'prof-21', name: 'Isabela Moreira', primaryStackId: 'stack-5', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(150) },
-  { id: 'prof-22', name: 'Thiago Araújo', primaryStackId: 'stack-7', secondaryStackIds: ['stack-6'], status: 'allocated', createdAt: daysAgo(140) },
-  { id: 'prof-23', name: 'Vanessa Lopes', primaryStackId: 'stack-12', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(130) },
-  { id: 'prof-24', name: 'Leonardo Cardoso', primaryStackId: 'stack-8', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(120) },
-  { id: 'prof-25', name: 'Mariana Santos', primaryStackId: 'stack-13', secondaryStackIds: ['stack-11'], status: 'idle', createdAt: daysAgo(110) },
-  { id: 'prof-26', name: 'Paulo Henrique', primaryStackId: 'stack-14', secondaryStackIds: [], status: 'partial', createdAt: daysAgo(100) },
-  { id: 'prof-27', name: 'Carla Mendonça', primaryStackId: 'stack-1', secondaryStackIds: [], status: 'allocated', createdAt: daysAgo(90) },
-  { id: 'prof-28', name: 'Eduardo Freitas', primaryStackId: 'stack-6', secondaryStackIds: [], status: 'idle', createdAt: daysAgo(80) },
+  { id: 'prof-1', name: 'Ana Beatriz Silva', primaryStackId: 'stack-1', secondaryStackIds: ['stack-12'], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(350) },
+  { id: 'prof-2', name: 'Carlos Eduardo Santos', primaryStackId: 'stack-11', secondaryStackIds: ['stack-1', 'stack-2'], status: 'allocated', workMode: 'both', createdAt: daysAgo(340) },
+  { id: 'prof-3', name: 'Maria Fernanda Costa', primaryStackId: 'stack-6', secondaryStackIds: ['stack-7'], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(330) },
+  { id: 'prof-4', name: 'João Pedro Oliveira', primaryStackId: 'stack-12', secondaryStackIds: ['stack-1', 'stack-2'], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(320) },
+  { id: 'prof-5', name: 'Luciana Almeida', primaryStackId: 'stack-5', secondaryStackIds: [], status: 'partial', workMode: 'both', createdAt: daysAgo(310) },
+  { id: 'prof-6', name: 'Roberto Lima', primaryStackId: 'stack-4', secondaryStackIds: ['stack-3'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(300) },
+  { id: 'prof-7', name: 'Fernanda Rodrigues', primaryStackId: 'stack-3', secondaryStackIds: ['stack-2'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(290) },
+  { id: 'prof-8', name: 'Marcos Vinícius', primaryStackId: 'stack-2', secondaryStackIds: ['stack-1'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(280) },
+  { id: 'prof-9', name: 'Patricia Souza', primaryStackId: 'stack-10', secondaryStackIds: ['stack-9'], status: 'partial', workMode: 'both', createdAt: daysAgo(270) },
+  { id: 'prof-10', name: 'Ricardo Mendes', primaryStackId: 'stack-1', secondaryStackIds: [], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(260) },
+  { id: 'prof-11', name: 'Camila Ferreira', primaryStackId: 'stack-8', secondaryStackIds: ['stack-9'], status: 'partial', workMode: 'both', createdAt: daysAgo(250) },
+  { id: 'prof-12', name: 'Bruno Carvalho', primaryStackId: 'stack-2', secondaryStackIds: ['stack-5'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(240) },
+  { id: 'prof-13', name: 'Juliana Martins', primaryStackId: 'stack-5', secondaryStackIds: [], status: 'allocated', workMode: 'factory', createdAt: daysAgo(230) },
+  { id: 'prof-14', name: 'André Nascimento', primaryStackId: 'stack-4', secondaryStackIds: [], status: 'allocated', workMode: 'factory', createdAt: daysAgo(220) },
+  { id: 'prof-15', name: 'Tatiana Ribeiro', primaryStackId: 'stack-9', secondaryStackIds: ['stack-8'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(210) },
+  { id: 'prof-16', name: 'Felipe Gomes', primaryStackId: 'stack-3', secondaryStackIds: [], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(200) },
+  { id: 'prof-17', name: 'Amanda Dias', primaryStackId: 'stack-6', secondaryStackIds: ['stack-7'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(190) },
+  { id: 'prof-18', name: 'Gustavo Pereira', primaryStackId: 'stack-11', secondaryStackIds: ['stack-1'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(180) },
+  { id: 'prof-19', name: 'Renata Castro', primaryStackId: 'stack-1', secondaryStackIds: ['stack-12'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(170) },
+  { id: 'prof-20', name: 'Diego Barbosa', primaryStackId: 'stack-4', secondaryStackIds: [], status: 'allocated', workMode: 'factory', createdAt: daysAgo(160) },
+  { id: 'prof-21', name: 'Isabela Moreira', primaryStackId: 'stack-5', secondaryStackIds: [], status: 'allocated', workMode: 'factory', createdAt: daysAgo(150) },
+  { id: 'prof-22', name: 'Thiago Araújo', primaryStackId: 'stack-7', secondaryStackIds: ['stack-6'], status: 'allocated', workMode: 'factory', createdAt: daysAgo(140) },
+  { id: 'prof-23', name: 'Vanessa Lopes', primaryStackId: 'stack-12', secondaryStackIds: [], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(130) },
+  { id: 'prof-24', name: 'Leonardo Cardoso', primaryStackId: 'stack-8', secondaryStackIds: [], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(120) },
+  { id: 'prof-25', name: 'Mariana Santos', primaryStackId: 'stack-13', secondaryStackIds: ['stack-11'], status: 'idle', workMode: 'factory', createdAt: daysAgo(110) },
+  { id: 'prof-26', name: 'Paulo Henrique', primaryStackId: 'stack-14', secondaryStackIds: [], status: 'partial', workMode: 'factory', createdAt: daysAgo(100) },
+  { id: 'prof-27', name: 'Carla Mendonça', primaryStackId: 'stack-1', secondaryStackIds: [], status: 'allocated', workMode: 'allocation', createdAt: daysAgo(90) },
+  { id: 'prof-28', name: 'Eduardo Freitas', primaryStackId: 'stack-6', secondaryStackIds: [], status: 'idle', workMode: 'factory', createdAt: daysAgo(80) },
+];
+
+// Seed Factory Projects
+export const seedFactoryProjects: FactoryProject[] = [
+  { id: 'fproj-1', name: 'Sistema ERP Interno', clientId: 'client-8', description: 'Desenvolvimento do ERP interno da Premiersoft', startDate: daysAgo(120), endDate: daysFromNow(90), status: 'in_progress', progressPercentage: 55, createdAt: daysAgo(120) },
+  { id: 'fproj-2', name: 'App Mobile Varejo', clientId: 'client-2', description: 'Aplicativo mobile para rede de varejo', startDate: daysAgo(60), endDate: daysFromNow(120), status: 'in_progress', progressPercentage: 30, createdAt: daysAgo(60) },
+  { id: 'fproj-3', name: 'Portal B2B Logística', clientId: 'client-4', description: 'Portal de integração B2B para logística', startDate: daysFromNow(15), endDate: daysFromNow(180), status: 'planned', progressPercentage: 0, createdAt: daysAgo(10) },
+  { id: 'fproj-4', name: 'Dashboard Analytics', clientId: 'client-3', description: 'Dashboard de analytics em tempo real', startDate: daysAgo(200), endDate: daysAgo(30), status: 'finished', progressPercentage: 100, createdAt: daysAgo(200) },
+  { id: 'fproj-5', name: 'Automação Industrial', clientId: 'client-6', description: 'Sistema de automação para indústria', startDate: daysAgo(90), endDate: daysFromNow(60), status: 'paused', progressPercentage: 40, createdAt: daysAgo(90) },
+];
+
+// Seed Factory Allocations
+export const seedFactoryAllocations: FactoryAllocation[] = [
+  // Sistema ERP Interno
+  { id: 'falloc-1', projectId: 'fproj-1', professionalId: 'prof-6', role: 'dev', stackId: 'stack-4', startDate: daysAgo(120), endDate: daysFromNow(90), allocationPercentage: 100, createdAt: daysAgo(120) },
+  { id: 'falloc-2', projectId: 'fproj-1', professionalId: 'prof-7', role: 'dev', stackId: 'stack-3', startDate: daysAgo(120), endDate: daysFromNow(90), allocationPercentage: 100, createdAt: daysAgo(120) },
+  { id: 'falloc-3', projectId: 'fproj-1', professionalId: 'prof-9', role: 'scrum_master', stackId: 'stack-10', startDate: daysAgo(120), endDate: daysFromNow(90), allocationPercentage: 50, createdAt: daysAgo(120) },
+  { id: 'falloc-4', projectId: 'fproj-1', professionalId: 'prof-17', role: 'qa', stackId: 'stack-6', startDate: daysAgo(60), endDate: daysFromNow(90), allocationPercentage: 100, createdAt: daysAgo(60) },
+  
+  // App Mobile Varejo
+  { id: 'falloc-5', projectId: 'fproj-2', professionalId: 'prof-19', role: 'dev', stackId: 'stack-1', startDate: daysAgo(60), endDate: daysFromNow(120), allocationPercentage: 100, createdAt: daysAgo(60) },
+  { id: 'falloc-6', projectId: 'fproj-2', professionalId: 'prof-12', role: 'dev', stackId: 'stack-2', startDate: daysAgo(60), endDate: daysFromNow(120), allocationPercentage: 100, createdAt: daysAgo(60) },
+  { id: 'falloc-7', projectId: 'fproj-2', professionalId: 'prof-11', role: 'po', stackId: 'stack-8', startDate: daysAgo(60), endDate: daysFromNow(30), allocationPercentage: 50, createdAt: daysAgo(60) },
+  
+  // Portal B2B Logística (planned)
+  { id: 'falloc-8', projectId: 'fproj-3', professionalId: 'prof-25', role: 'architect', stackId: 'stack-13', startDate: daysFromNow(15), endDate: daysFromNow(60), allocationPercentage: 100, createdAt: daysAgo(10) },
+  { id: 'falloc-9', projectId: 'fproj-3', professionalId: 'prof-18', role: 'tech_lead', stackId: 'stack-11', startDate: daysFromNow(15), endDate: daysFromNow(180), allocationPercentage: 100, createdAt: daysAgo(10) },
+  
+  // Automação Industrial (paused)
+  { id: 'falloc-10', projectId: 'fproj-5', professionalId: 'prof-14', role: 'dev', stackId: 'stack-4', startDate: daysAgo(90), endDate: daysFromNow(60), allocationPercentage: 100, createdAt: daysAgo(90) },
+  { id: 'falloc-11', projectId: 'fproj-5', professionalId: 'prof-15', role: 'pm', stackId: 'stack-9', startDate: daysAgo(90), endDate: daysFromNow(60), allocationPercentage: 100, createdAt: daysAgo(90) },
 ];
 
 // Seed Allocations with allocation percentages

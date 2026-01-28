@@ -21,7 +21,7 @@ export interface Contract {
   id: string;
   clientId: string;
   contractNumber: string;
-  projectName?: string; // Nome do projeto (especialmente para Fábrica)
+  projectName?: string;
   type: ContractType;
   startDate: string;
   endDate: string;
@@ -48,9 +48,12 @@ export interface Position {
   status: PositionStatus;
   startDate: string;
   endDate: string;
-  allocationPercentage: number; // % de alocação (100%, 50%, etc.)
+  allocationPercentage: number;
   createdAt: string;
 }
+
+// Modo de atuação do profissional
+export type ProfessionalWorkMode = 'allocation' | 'factory' | 'both';
 
 export interface Professional {
   id: string;
@@ -58,6 +61,7 @@ export interface Professional {
   primaryStackId: string;
   secondaryStackIds: string[];
   status: 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice';
+  workMode: ProfessionalWorkMode; // Alocação, Fábrica ou Ambos
   createdAt: string;
 }
 
@@ -67,11 +71,46 @@ export interface Allocation {
   positionId: string;
   startDate: string;
   endDate: string | null;
-  allocationPercentage: number; // % de alocação nesta posição
+  allocationPercentage: number;
   createdAt: string;
 }
 
-// Computed/derived types for dashboard
+// ============================================
+// FACTORY PROJECT TYPES (Fábrica de Software)
+// ============================================
+
+export type FactoryProjectStatus = 'planned' | 'in_progress' | 'finished' | 'paused';
+
+export interface FactoryProject {
+  id: string;
+  name: string;
+  clientId?: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  status: FactoryProjectStatus;
+  progressPercentage: number; // 0-100
+  createdAt: string;
+}
+
+export type FactoryRole = 'dev' | 'qa' | 'po' | 'pm' | 'tech_lead' | 'architect' | 'scrum_master' | 'ux' | 'other';
+
+export interface FactoryAllocation {
+  id: string;
+  projectId: string;
+  professionalId: string;
+  role: FactoryRole;
+  stackId: string;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+  createdAt: string;
+}
+
+// ============================================
+// COMPUTED / DERIVED TYPES
+// ============================================
+
 export type ContractStatus = 'active' | 'expiring_30' | 'expiring_60' | 'expiring_90' | 'expired';
 
 export interface ContractWithDetails extends Contract {
@@ -179,4 +218,67 @@ export interface ProfessionalIdleForecast {
   currentProjectName: string;
   allocationEndDate: string;
   daysUntilIdle: number;
+}
+
+// ============================================
+// FACTORY DASHBOARD TYPES
+// ============================================
+
+export interface FactoryProjectWithDetails extends FactoryProject {
+  client?: Client;
+  allocations: FactoryAllocationWithDetails[];
+  totalMembers: number;
+  daysRemaining: number;
+  daysElapsed: number;
+  totalDays: number;
+  calculatedProgress: number; // Based on time elapsed
+}
+
+export interface FactoryAllocationWithDetails extends FactoryAllocation {
+  professional: Professional;
+  stack: Stack;
+}
+
+export interface FactoryDashboardMetrics {
+  totalProjects: number;
+  activeProjects: number;
+  plannedProjects: number;
+  finishedProjects: number;
+  pausedProjects: number;
+  totalFactoryProfessionals: number;
+  currentOccupancyRate: number;
+  occupancy30Days: number;
+  occupancy60Days: number;
+  occupancy90Days: number;
+}
+
+export interface FactoryIdleForecast {
+  period: 30 | 60 | 90;
+  currentAllocated: number;
+  predictedIdle: number;
+  idleProfessionals: FactoryIdleProfessional[];
+  occupancyRate: number;
+}
+
+export interface FactoryIdleProfessional {
+  professionalId: string;
+  professionalName: string;
+  stackName: string;
+  currentProjectName: string;
+  allocationEndDate: string;
+  daysUntilIdle: number;
+}
+
+export interface FactoryGanttEntry {
+  id: string;
+  type: 'project' | 'professional';
+  name: string;
+  projectId?: string;
+  projectName?: string;
+  role?: string;
+  stackName?: string;
+  startDate: string;
+  endDate: string;
+  progress?: number;
+  status?: FactoryProjectStatus;
 }
