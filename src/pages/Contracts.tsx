@@ -286,7 +286,7 @@ export default function Contracts() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
+                {/* <div className="space-y-2">
                   <Label htmlFor="monthlyValue">Valor Mensal (R$)</Label>
                   <Input
                     id="monthlyValue"
@@ -297,7 +297,7 @@ export default function Contracts() {
                     }
                     placeholder="0.00"
                   />
-                </div>
+                </div> */}
               </div>
               <DialogFooter>
                 <Button
@@ -351,7 +351,7 @@ export default function Contracts() {
                 <TableHead>Contrato</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Período</TableHead>
-                <TableHead>Valor Mensal</TableHead>
+                {/* <TableHead>Valor Mensal</TableHead> */}
                 <TableHead className="text-center">Vagas</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[100px]"></TableHead>
@@ -393,9 +393,9 @@ export default function Contracts() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">
+                      {/* <TableCell className="font-medium">
                         {formatCurrency(contract.monthlyValue)}
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell className="text-center">
                         {positions.filter(p => p.status === 'filled').length}/{positions.length}
                       </TableCell>

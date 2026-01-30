@@ -45,7 +45,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Contratos Ativos"
           value={dashboardMetrics.activeContracts}
@@ -83,16 +83,16 @@ export default function Dashboard() {
           icon={Briefcase}
           variant="default"
         />
-        <MetricCard
+        {/* <MetricCard
           title="Receita Mensal"
           value={formatCurrency(dashboardMetrics.monthlyRevenue)}
           icon={TrendingUp}
           variant="success"
-        />
+        /> */}
       </div>
 
       {/* Expiration Alerts - Main Focus */}
-      <div>
+      {/* <div>
         <div className="flex items-center gap-2 mb-4">
           <AlertCircle className="h-5 w-5 text-danger" />
           <h2 className="text-xl font-semibold">Alertas de Vencimento</h2>
@@ -102,15 +102,15 @@ export default function Dashboard() {
             <ExpirationAlertCard key={group.days} group={group} />
           ))}
         </div>
-      </div>
+      </div> */}
 
-      {/* Revenue Analysis */}
+      {/* Revenue Analysis
       <RevenueChart
         monthlyRevenue={dashboardMetrics.monthlyRevenue}
         revenueAtRisk30={dashboardMetrics.revenueAtRisk30}
         revenueAtRisk60={dashboardMetrics.revenueAtRisk60}
         revenueAtRisk90={dashboardMetrics.revenueAtRisk90}
-      />
+      /> */}
 
       {/* Occupancy Forecast - NEW */}
       <div className="grid md:grid-cols-2 gap-6">
@@ -137,7 +137,7 @@ export default function Dashboard() {
       </div>
 
       {/* Client Overview */}
-      <ClientOverviewCard clientSummaries={clientSummaries} />
+      {/* <ClientOverviewCard clientSummaries={clientSummaries} /> */}
     </div>
   );
 }

@@ -228,7 +228,7 @@ export default function Clients() {
                 <TableHead>Contato</TableHead>
                 <TableHead className="text-center">Contratos</TableHead>
                 <TableHead className="text-center">Vagas</TableHead>
-                <TableHead className="text-right">Valor Mensal</TableHead>
+                {/* <TableHead className="text-right">Valor Mensal</TableHead> */}
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -262,9 +262,9 @@ export default function Clients() {
                       <TableCell className="text-center">
                         {summary?.filledPositions || 0}/{summary?.totalPositions || 0}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      {/* <TableCell className="text-right font-medium">
                         {formatCurrency(summary?.totalMonthlyValue || 0)}
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell>
                         <div className="flex gap-1">
                           <Button
