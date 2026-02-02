@@ -29,12 +29,38 @@ export interface Contract {
   createdAt: string;
 }
 
-export type StackCategory = 'development' | 'qa' | 'management';
+// ============================================
+// STACK CATEGORY (Dynamic)
+// ============================================
+
+export interface StackCategory {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
+// ============================================
+// SENIORITY LEVELS
+// ============================================
+
+export interface Seniority {
+  id: string;
+  name: string;
+  level: number; // For ordering (1 = Junior, 2 = Pleno, etc.)
+  categoryId: string; // Category-specific seniorities
+  description?: string;
+  createdAt: string;
+}
+
+// ============================================
+// STACKS
+// ============================================
 
 export interface Stack {
   id: string;
   name: string;
-  category: StackCategory;
+  categoryId: string; // Reference to StackCategory
   createdAt: string;
 }
 
@@ -45,6 +71,7 @@ export interface Position {
   contractId: string;
   title: string;
   stackId: string;
+  seniorityId?: string; // Required seniority for position
   status: PositionStatus;
   startDate: string;
   endDate: string;
@@ -52,16 +79,29 @@ export interface Position {
   createdAt: string;
 }
 
-// Modo de atuação do profissional
+// ============================================
+// PROFESSIONAL
+// ============================================
+
 export type ProfessionalWorkMode = 'allocation' | 'factory' | 'both';
+export type ProfessionalStatus = 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice';
+
+// Experience per stack
+export interface ProfessionalStackExperience {
+  stackId: string;
+  seniorityId: string;
+  yearsExperience: number; // Years in this specific stack (< 2 = 1)
+}
 
 export interface Professional {
   id: string;
   name: string;
-  primaryStackId: string;
-  secondaryStackIds: string[];
-  status: 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice';
-  workMode: ProfessionalWorkMode; // Alocação, Fábrica ou Ambos
+  email?: string;
+  stackExperiences: ProfessionalStackExperience[]; // Multiple stacks with experience
+  status: ProfessionalStatus;
+  workMode: ProfessionalWorkMode;
+  leaderId?: string; // Reference to another Professional
+  totalYearsExperience?: number; // Total years in the field
   createdAt: string;
 }
 
@@ -89,7 +129,7 @@ export interface FactoryProject {
   startDate: string;
   endDate: string;
   status: FactoryProjectStatus;
-  progressPercentage: number; // 0-100
+  progressPercentage: number;
   createdAt: string;
 }
 
@@ -145,7 +185,8 @@ export interface ExpiringContractsGroup {
 export interface StackDistribution {
   stackId: string;
   stackName: string;
-  category: StackCategory;
+  categoryId: string;
+  categoryName: string;
   professionalCount: number;
   positionCount: number;
   filledPositions: number;
@@ -166,7 +207,7 @@ export interface AllocationTimelineEntry {
   professionalName: string;
   positionTitle: string;
   stackName: string;
-  stackCategory: StackCategory;
+  categoryName: string;
   clientName: string;
   projectName: string;
   contractType: ContractType;
@@ -195,7 +236,7 @@ export interface TeamMember {
   professionalName: string;
   positionTitle: string;
   stackName: string;
-  stackCategory: StackCategory;
+  categoryName: string;
   startDate: string;
   endDate: string;
   allocationPercentage: number;
@@ -231,7 +272,7 @@ export interface FactoryProjectWithDetails extends FactoryProject {
   daysRemaining: number;
   daysElapsed: number;
   totalDays: number;
-  calculatedProgress: number; // Based on time elapsed
+  calculatedProgress: number;
 }
 
 export interface FactoryAllocationWithDetails extends FactoryAllocation {
@@ -281,4 +322,17 @@ export interface FactoryGanttEntry {
   endDate: string;
   progress?: number;
   status?: FactoryProjectStatus;
+}
+
+// ============================================
+// LEADER METRICS
+// ============================================
+
+export interface LeaderMetrics {
+  leaderId: string;
+  leaderName: string;
+  totalProfessionals: number;
+  allocatedProfessionals: number;
+  idleProfessionals: number;
+  professionals: Professional[];
 }
