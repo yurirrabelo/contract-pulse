@@ -62,7 +62,6 @@ export default function Positions() {
     deletePosition,
     addAllocation,
     deleteAllocation,
-    updateProfessional,
   } = useData();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
@@ -131,19 +130,7 @@ export default function Positions() {
     // Update position status to filled
     updatePosition(selectedPosition.id, { status: 'filled' });
 
-    // Update professional status based on total allocation
-    const professional = getProfessionalById(selectedProfessionalId);
-    if (professional) {
-      const profAllocations = allocations.filter(a => 
-        a.professionalId === selectedProfessionalId && 
-        (!a.endDate || new Date(a.endDate) >= new Date())
-      );
-      const currentAllocation = profAllocations.reduce((sum, a) => sum + a.allocationPercentage, 0);
-      const newTotalAllocation = currentAllocation + selectedPosition.allocationPercentage;
-      
-      const newStatus = newTotalAllocation >= 100 ? 'allocated' : 'partial';
-      updateProfessional(selectedProfessionalId, { status: newStatus });
-    }
+    // Status do profissional é derivado automaticamente — não precisa chamar updateProfessional
 
     toast({
       title: 'Profissional vinculado',
@@ -158,33 +145,13 @@ export default function Positions() {
   const handleUnassignProfessional = (position: Position) => {
     const allocation = getPositionAllocation(position);
     if (allocation) {
-      const professionalId = allocation.professionalId;
-      const allocationPercentage = allocation.allocationPercentage;
-      
       // Delete the allocation
       deleteAllocation(allocation.id);
       
       // Update position status to open
       updatePosition(position.id, { status: 'open' });
 
-      // Update professional status based on remaining allocation
-      const professional = getProfessionalById(professionalId);
-      if (professional) {
-        const remainingAllocations = allocations.filter(a => 
-          a.professionalId === professionalId && 
-          a.id !== allocation.id &&
-          (!a.endDate || new Date(a.endDate) >= new Date())
-        );
-        const remainingTotal = remainingAllocations.reduce((sum, a) => sum + a.allocationPercentage, 0);
-        
-        let newStatus: 'idle' | 'partial' | 'allocated' = 'idle';
-        if (remainingTotal >= 100) {
-          newStatus = 'allocated';
-        } else if (remainingTotal > 0) {
-          newStatus = 'partial';
-        }
-        updateProfessional(professionalId, { status: newStatus });
-      }
+      // Status do profissional é derivado automaticamente
 
       toast({
         title: 'Profissional desvinculado',

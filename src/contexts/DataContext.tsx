@@ -50,6 +50,10 @@ interface DataContextType {
   contracts: Contract[];
   stacks: Stack[];
   positions: Position[];
+  /**
+   * Professionals with status automatically derived from allocations.
+   * This list already has calculated status (idle / partial / allocated).
+   */
   professionals: Professional[];
   allocations: Allocation[];
   factoryProjects: FactoryProject[];
@@ -192,7 +196,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getContractById = useCallback((id: string) => contracts.find(c => c.id === id), [contracts]);
   const getStackById = useCallback((id: string) => stacks.find(s => s.id === id), [stacks]);
   const getPositionById = useCallback((id: string) => positions.find(p => p.id === id), [positions]);
-  const getProfessionalById = useCallback((id: string) => professionals.find(p => p.id === id), [professionals]);
+  // Raw helper to lookup before derivedProfessionals is computed; usages must be careful
+  const getRawProfessionalById = useCallback((id: string) => professionals.find(p => p.id === id), [professionals]);
   const getPositionsByContract = useCallback((contractId: string) => positions.filter(p => p.contractId === contractId), [positions]);
   const getAllocationsByPosition = useCallback((positionId: string) => allocations.filter(a => a.positionId === positionId), [allocations]);
 
@@ -233,6 +238,54 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const primaryExp = professional.stackExperiences[0];
     return stacks.find(s => s.id === primaryExp.stackId);
   }, [stacks]);
+
+  // ============================================
+  // DERIVED PROFESSIONALS (status auto-calculated)
+  // ============================================
+
+  const derivedProfessionals = useMemo<Professional[]>(() => {
+    const today = new Date();
+
+    return professionals.map((prof) => {
+      // Staffing allocations active today
+      const activeStaffingAllocations = allocations.filter(
+        (a) => a.professionalId === prof.id && isAllocationActiveForPosition(a, today)
+      );
+      const staffingSum = activeStaffingAllocations.reduce(
+        (sum, a) => sum + a.allocationPercentage,
+        0
+      );
+
+      // Factory allocations active today
+      const activeFactoryAllocations = factoryAllocations.filter((fa) => {
+        const start = new Date(fa.startDate);
+        const end = new Date(fa.endDate);
+        return fa.professionalId === prof.id && start <= today && end >= today;
+      });
+      const factorySum = activeFactoryAllocations.reduce(
+        (sum, a) => sum + a.allocationPercentage,
+        0
+      );
+
+      const totalAllocation = staffingSum + factorySum;
+
+      let derivedStatus: Professional['status'];
+      if (totalAllocation >= 100) {
+        derivedStatus = 'allocated';
+      } else if (totalAllocation > 0) {
+        derivedStatus = 'partial';
+      } else {
+        derivedStatus = 'idle';
+      }
+
+      // Allow user to override for special statuses (vacation, notice)
+      if (prof.status === 'vacation' || prof.status === 'notice') {
+        derivedStatus = prof.status;
+      }
+
+      return { ...prof, status: derivedStatus };
+    });
+  }, [professionals, allocations, factoryAllocations, isAllocationActiveForPosition]);
 
   // Computed: Contracts with details
   const contractsWithDetails = useMemo<ContractWithDetails[]>(() => {
@@ -363,7 +416,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Computed: Allocation Timeline
   const allocationTimeline = useMemo<AllocationTimelineEntry[]>(() => {
     return allocations.map(allocation => {
-      const professional = getProfessionalById(allocation.professionalId);
+      const professional = getRawProfessionalById(allocation.professionalId);
       const position = getPositionById(allocation.positionId);
       const contract = position ? getContractById(position.contractId) : null;
       const client = contract ? getClientById(contract.clientId) : null;
@@ -387,7 +440,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         allocationPercentage: allocation.allocationPercentage,
       };
     }).filter(Boolean) as AllocationTimelineEntry[];
-  }, [allocations, getProfessionalById, getPositionById, getContractById, getClientById, getStackById, getStackCategoryById]);
+  }, [allocations, getRawProfessionalById, getPositionById, getContractById, getClientById, getStackById, getStackCategoryById]);
 
   // Computed: Team Views
   const teamViews = useMemo<TeamView[]>(() => {
@@ -398,7 +451,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       const members = contractAllocations.map(allocation => {
-        const professional = getProfessionalById(allocation.professionalId);
+        const professional = getRawProfessionalById(allocation.professionalId);
         const position = getPositionById(allocation.positionId);
         const stack = position ? getStackById(position.stackId) : null;
         const category = stack ? getStackCategoryById(stack.categoryId) : null;
@@ -432,7 +485,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         filledPositions: contract.positions.filter(p => p.status === 'filled').length,
       };
     });
-  }, [contractsWithDetails, allocations, getProfessionalById, getPositionById, getStackById, getStackCategoryById]);
+  }, [contractsWithDetails, allocations, getRawProfessionalById, getPositionById, getStackById, getStackCategoryById]);
 
   // Computed: Occupancy Forecasts
   const occupancyForecasts = useMemo<OccupancyForecast[]>(() => {
@@ -455,7 +508,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       const predictedIdleProfessionals: ProfessionalIdleForecast[] = endingAllocations.map(a => {
-        const professional = getProfessionalById(a.professionalId);
+        const professional = getRawProfessionalById(a.professionalId);
         const position = getPositionById(a.positionId);
         const contract = position ? getContractById(position.contractId) : null;
         const client = contract ? getClientById(contract.clientId) : null;
@@ -505,7 +558,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return forecasts;
-  }, [allocations, professionals, getProfessionalById, getPositionById, getContractById, getClientById, getProfessionalPrimaryStack]);
+  }, [allocations, professionals, getRawProfessionalById, getPositionById, getContractById, getClientById, getProfessionalPrimaryStack]);
 
   // Computed: Leader Metrics
   const leaderMetrics = useMemo<LeaderMetrics[]>(() => {
@@ -542,7 +595,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const projectAllocations = factoryAllocations
         .filter(a => a.projectId === project.id)
         .map(a => {
-          const professional = getProfessionalById(a.professionalId);
+          const professional = getRawProfessionalById(a.professionalId);
           const stack = getStackById(a.stackId);
           if (!professional || !stack) return null;
           return { ...a, professional, stack } as FactoryAllocationWithDetails;
@@ -567,7 +620,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         calculatedProgress,
       };
     });
-  }, [factoryProjects, factoryAllocations, getClientById, getProfessionalById, getStackById]);
+  }, [factoryProjects, factoryAllocations, getClientById, getRawProfessionalById, getStackById]);
 
   // Factory Dashboard Metrics
   const factoryMetrics = useMemo<FactoryDashboardMetrics>(() => {
@@ -651,7 +704,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       const idleProfessionals: FactoryIdleProfessional[] = endingAllocations.map(a => {
-        const professional = getProfessionalById(a.professionalId);
+        const professional = getRawProfessionalById(a.professionalId);
         const project = factoryProjects.find(p => p.id === a.projectId);
         const primaryStack = professional ? getProfessionalPrimaryStack(professional) : null;
         
@@ -700,7 +753,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return forecasts;
-  }, [factoryAllocations, factoryProjects, professionals, getProfessionalById, getProfessionalPrimaryStack]);
+  }, [factoryAllocations, factoryProjects, professionals, getRawProfessionalById, getProfessionalPrimaryStack]);
 
   // Factory Gantt Data
   const factoryGanttData = useMemo<FactoryGanttEntry[]>(() => {
@@ -945,6 +998,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setFactoryAllocations(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  // getProfessionalById uses derived so we always read correct status
+  const getProfessionalById = useCallback((id: string) => derivedProfessionals.find(p => p.id === id), [derivedProfessionals]);
+
   return (
     <DataContext.Provider
       value={{
@@ -952,7 +1008,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         contracts,
         stacks,
         positions,
-        professionals,
+        professionals: derivedProfessionals,
         allocations,
         factoryProjects,
         factoryAllocations,
