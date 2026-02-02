@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { Position } from '@/types';
 import { formatDate } from '@/lib/storage';
+import { isAllocationActive } from '@/lib/allocation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -87,8 +88,10 @@ export default function Positions() {
   });
 
   // Get allocation for a position
-  const getPositionAllocation = (positionId: string) => {
-    return allocations.find(a => a.positionId === positionId && !a.endDate);
+  const getPositionAllocation = (position: Position) => {
+    return allocations.find(
+      a => a.positionId === position.id && isAllocationActive(a, { position, at: new Date() })
+    );
   };
 
   // Get available professionals (not fully allocated)
@@ -152,8 +155,8 @@ export default function Positions() {
     setSelectedProfessionalId('');
   };
 
-  const handleUnassignProfessional = (positionId: string) => {
-    const allocation = getPositionAllocation(positionId);
+  const handleUnassignProfessional = (position: Position) => {
+    const allocation = getPositionAllocation(position);
     if (allocation) {
       const professionalId = allocation.professionalId;
       const allocationPercentage = allocation.allocationPercentage;
@@ -162,7 +165,7 @@ export default function Positions() {
       deleteAllocation(allocation.id);
       
       // Update position status to open
-      updatePosition(positionId, { status: 'open' });
+      updatePosition(position.id, { status: 'open' });
 
       // Update professional status based on remaining allocation
       const professional = getProfessionalById(professionalId);
@@ -272,7 +275,7 @@ export default function Positions() {
                   const contract = getContractById(position.contractId);
                   const client = contract ? getClientById(contract.clientId) : null;
                   const stack = getStackById(position.stackId);
-                  const allocation = getPositionAllocation(position.id);
+                  const allocation = getPositionAllocation(position);
                   const professional = allocation ? getProfessionalById(allocation.professionalId) : null;
 
                   return (
@@ -330,7 +333,7 @@ export default function Positions() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleUnassignProfessional(position.id)}
+                              onClick={() => handleUnassignProfessional(position)}
                               title="Desvincular profissional"
                             >
                               <UserMinus className="h-4 w-4 text-warning" />
