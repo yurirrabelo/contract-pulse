@@ -15,7 +15,7 @@ import Positions from "@/pages/Positions";
 import Professionals from "@/pages/Professionals";
 import Stacks from "@/pages/Stacks";
 import StackCategories from "@/pages/StackCategories";
-import Seniorities from "@/pages/Seniorities";
+
 import GeneralSeniorities from "@/pages/GeneralSeniorities";
 import Teams from "@/pages/Teams";
 import FactoryDashboard from "@/pages/FactoryDashboard";
@@ -46,7 +46,7 @@ const App = () => (
                   <Route path="/professionals" element={<Professionals />} />
                   <Route path="/stacks" element={<Stacks />} />
                   <Route path="/stack-categories" element={<StackCategories />} />
-                  <Route path="/seniorities" element={<Seniorities />} />
+                  
                   <Route path="/general-seniorities" element={<GeneralSeniorities />} />
                   <Route path="/teams" element={<Teams />} />
                   <Route path="/factory" element={<FactoryDashboard />} />
