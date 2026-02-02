@@ -79,7 +79,6 @@ export default function Professionals() {
     status: 'idle' as Professional['status'],
     workMode: 'both' as Professional['workMode'],
     leaderId: '',
-    totalYearsExperience: 0,
   });
 
   // Temp state for adding stack experience
@@ -112,7 +111,6 @@ export default function Professionals() {
         status: professional.status,
         workMode: professional.workMode,
         leaderId: professional.leaderId || '',
-        totalYearsExperience: professional.totalYearsExperience || 0,
       });
     } else {
       setEditingProfessional(null);
@@ -124,7 +122,6 @@ export default function Professionals() {
         status: 'idle',
         workMode: 'both',
         leaderId: '',
-        totalYearsExperience: 0,
       });
     }
     setTempStackExp({ stackId: '', yearsExperience: 1 });
@@ -232,21 +229,15 @@ export default function Professionals() {
                     <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Senioridade Geral</Label>
-                    <Select value={formData.generalSeniorityId || 'none'} onValueChange={(v) => setFormData({ ...formData, generalSeniorityId: v === 'none' ? '' : v })}>
-                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Não definida</SelectItem>
-                        {sortedSeniorities.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Anos Experiência Total</Label>
-                    <Input type="number" min="0" value={formData.totalYearsExperience} onChange={(e) => setFormData({ ...formData, totalYearsExperience: parseInt(e.target.value) || 0 })} />
-                  </div>
+                <div className="space-y-2">
+                  <Label>Senioridade Geral</Label>
+                  <Select value={formData.generalSeniorityId || 'none'} onValueChange={(v) => setFormData({ ...formData, generalSeniorityId: v === 'none' ? '' : v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não definida</SelectItem>
+                      {sortedSeniorities.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
