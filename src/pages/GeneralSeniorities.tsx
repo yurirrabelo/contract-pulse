@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +39,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Award, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, Award, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function GeneralSeniorities() {
   const { 
@@ -53,6 +53,8 @@ export default function GeneralSeniorities() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', level: 1, description: '' });
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const sortedSeniorities = [...generalSeniorities].sort((a, b) => a.level - b.level);
 
@@ -100,13 +102,85 @@ export default function GeneralSeniorities() {
     }
   };
 
-  // Group by first character for better visualization
-  const groupedSeniorities = sortedSeniorities.reduce((acc, sen) => {
-    const prefix = sen.name.charAt(0).toUpperCase();
-    if (!acc[prefix]) acc[prefix] = [];
-    acc[prefix].push(sen);
-    return acc;
-  }, {} as Record<string, typeof generalSeniorities>);
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (draggedId !== id) {
+      setDragOverId(id);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const draggedItem = sortedSeniorities.find(s => s.id === draggedId);
+    const targetItem = sortedSeniorities.find(s => s.id === targetId);
+    
+    if (!draggedItem || !targetItem) return;
+
+    const draggedIndex = sortedSeniorities.findIndex(s => s.id === draggedId);
+    const targetIndex = sortedSeniorities.findIndex(s => s.id === targetId);
+
+    // Reorder all items
+    const newOrder = [...sortedSeniorities];
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, draggedItem);
+
+    // Update levels for all affected items
+    newOrder.forEach((item, index) => {
+      if (item.level !== index + 1) {
+        updateGeneralSeniority(item.id, { level: index + 1 });
+      }
+    });
+
+    toast({ title: 'Ordem atualizada' });
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  // Move up/down with buttons
+  const handleMoveUp = (id: string) => {
+    const index = sortedSeniorities.findIndex(s => s.id === id);
+    if (index <= 0) return;
+    
+    const current = sortedSeniorities[index];
+    const previous = sortedSeniorities[index - 1];
+    
+    updateGeneralSeniority(current.id, { level: previous.level });
+    updateGeneralSeniority(previous.id, { level: current.level });
+    toast({ title: 'Ordem atualizada' });
+  };
+
+  const handleMoveDown = (id: string) => {
+    const index = sortedSeniorities.findIndex(s => s.id === id);
+    if (index >= sortedSeniorities.length - 1) return;
+    
+    const current = sortedSeniorities[index];
+    const next = sortedSeniorities[index + 1];
+    
+    updateGeneralSeniority(current.id, { level: next.level });
+    updateGeneralSeniority(next.id, { level: current.level });
+    toast({ title: 'Ordem atualizada' });
+  };
 
   return (
     <div className="space-y-6">
@@ -179,75 +253,56 @@ export default function GeneralSeniorities() {
         </Dialog>
       </div>
 
-      {/* Visual Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {Object.entries(groupedSeniorities).map(([prefix, seniorities]) => (
-          <Card key={prefix}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Badge variant="outline" className="text-lg px-3 py-1">{prefix}</Badge>
-                <span className="text-muted-foreground text-sm">
-                  {seniorities.length} {seniorities.length === 1 ? 'nível' : 'níveis'}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {seniorities.map((sen) => (
-                <div 
-                  key={sen.id} 
-                  className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 group"
-                >
-                  <div className="flex items-center gap-2">
-                    <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                    <span className="font-medium">{sen.name}</span>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenDialog(sen)}>
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteId(sen.id)}>
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      {/* Full Table View */}
+      {/* Full Table View with Drag & Drop */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5" />
-            Todos os Níveis
+            Ordem de Progressão
           </CardTitle>
           <CardDescription>
-            Lista completa de senioridades em ordem de progressão
+            Arraste para reordenar. Itens no topo são os níveis mais baixos (iniciantes), itens na base são os mais altos (experientes).
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16">Ordem</TableHead>
+                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-16">Nível</TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Descrição</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
+                <TableHead className="w-[140px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedSeniorities.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     <Award className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-muted-foreground">Nenhuma senioridade cadastrada</p>
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedSeniorities.map((sen) => (
-                  <TableRow key={sen.id}>
+                sortedSeniorities.map((sen, index) => (
+                  <TableRow 
+                    key={sen.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, sen.id)}
+                    onDragOver={(e) => handleDragOver(e, sen.id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, sen.id)}
+                    onDragEnd={handleDragEnd}
+                    className={`cursor-grab active:cursor-grabbing transition-colors ${
+                      draggedId === sen.id ? 'opacity-50' : ''
+                    } ${
+                      dragOverId === sen.id ? 'bg-primary/10 border-primary' : ''
+                    }`}
+                  >
+                    <TableCell className="text-muted-foreground">
+                      <GripVertical className="h-4 w-4" />
+                    </TableCell>
                     <TableCell className="font-mono text-muted-foreground">{sen.level}</TableCell>
                     <TableCell className="font-medium">
                       <Badge variant="secondary">{sen.name}</Badge>
@@ -255,6 +310,24 @@ export default function GeneralSeniorities() {
                     <TableCell className="text-muted-foreground">{sen.description || '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleMoveUp(sen.id)}
+                          disabled={index === 0}
+                          title="Mover para cima (menor senioridade)"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleMoveDown(sen.id)}
+                          disabled={index === sortedSeniorities.length - 1}
+                          title="Mover para baixo (maior senioridade)"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(sen)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
