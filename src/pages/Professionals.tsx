@@ -258,10 +258,10 @@ export default function Professionals() {
                 </div>
                 <div className="space-y-2">
                   <Label>Líder</Label>
-                  <Select value={formData.leaderId} onValueChange={(v) => setFormData({ ...formData, leaderId: v })}>
+                  <Select value={formData.leaderId || 'none'} onValueChange={(v) => setFormData({ ...formData, leaderId: v === 'none' ? '' : v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione um líder (opcional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {leaders.map((leader) => (
                         <SelectItem key={leader.id} value={leader.id}>{leader.name}</SelectItem>
                       ))}
