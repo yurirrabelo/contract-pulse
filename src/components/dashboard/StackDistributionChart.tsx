@@ -26,30 +26,24 @@ const COLORS = [
   'hsl(262, 47%, 47%)',
 ];
 
-const CATEGORY_LABELS = {
-  development: 'Desenvolvimento',
-  qa: 'QA',
-  management: 'Gestão',
-};
-
 export function StackDistributionChart({ distributions }: StackDistributionChartProps) {
   const professionalData = distributions
     .filter(d => d.professionalCount > 0)
     .map(d => ({
       name: d.stackName,
       value: d.professionalCount,
-      category: d.category,
+      categoryName: d.categoryName,
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
   const categoryData = distributions.reduce((acc, d) => {
-    const category = CATEGORY_LABELS[d.category];
-    const existing = acc.find(item => item.name === category);
+    const categoryName = d.categoryName || 'Outros';
+    const existing = acc.find(item => item.name === categoryName);
     if (existing) {
       existing.value += d.professionalCount;
     } else {
-      acc.push({ name: category, value: d.professionalCount });
+      acc.push({ name: categoryName, value: d.professionalCount });
     }
     return acc;
   }, [] as { name: string; value: number }[]);
