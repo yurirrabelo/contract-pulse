@@ -50,11 +50,9 @@ export default function Professionals() {
   const { 
     professionals, 
     stacks,
-    seniorities,
-    stackCategories,
+    generalSeniorities,
     getStackById,
-    getSeniorityById,
-    getStackCategoryById,
+    getGeneralSeniorityById,
     getPositionById,
     getContractById,
     getClientById,
@@ -67,6 +65,7 @@ export default function Professionals() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [stackFilter, setStackFilter] = useState<string>('all');
+  const [seniorityFilter, setSeniorityFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProfessional, setEditingProfessional] = useState<Professional | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -75,6 +74,7 @@ export default function Professionals() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    generalSeniorityId: '',
     stackExperiences: [] as ProfessionalStackExperience[],
     status: 'idle' as Professional['status'],
     workMode: 'both' as Professional['workMode'],
@@ -85,7 +85,6 @@ export default function Professionals() {
   // Temp state for adding stack experience
   const [tempStackExp, setTempStackExp] = useState({
     stackId: '',
-    seniorityId: '',
     yearsExperience: 1,
   });
 
@@ -96,8 +95,10 @@ export default function Professionals() {
       professional.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       primaryStack?.name.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (stackFilter === 'all') return matchesSearch;
-    return matchesSearch && professional.stackExperiences?.some(exp => exp.stackId === stackFilter);
+    const matchesStack = stackFilter === 'all' || professional.stackExperiences?.some(exp => exp.stackId === stackFilter);
+    const matchesSeniority = seniorityFilter === 'all' || professional.generalSeniorityId === seniorityFilter;
+
+    return matchesSearch && matchesStack && matchesSeniority;
   });
 
   const handleOpenDialog = (professional?: Professional) => {
@@ -106,6 +107,7 @@ export default function Professionals() {
       setFormData({
         name: professional.name,
         email: professional.email || '',
+        generalSeniorityId: professional.generalSeniorityId || '',
         stackExperiences: professional.stackExperiences || [],
         status: professional.status,
         workMode: professional.workMode,
@@ -117,6 +119,7 @@ export default function Professionals() {
       setFormData({
         name: '',
         email: '',
+        generalSeniorityId: '',
         stackExperiences: [],
         status: 'idle',
         workMode: 'both',
@@ -124,7 +127,7 @@ export default function Professionals() {
         totalYearsExperience: 0,
       });
     }
-    setTempStackExp({ stackId: '', seniorityId: '', yearsExperience: 1 });
+    setTempStackExp({ stackId: '', yearsExperience: 1 });
     setIsDialogOpen(true);
   };
 
@@ -161,7 +164,7 @@ export default function Professionals() {
   };
 
   const addStackExperience = () => {
-    if (!tempStackExp.stackId || !tempStackExp.seniorityId) return;
+    if (!tempStackExp.stackId) return;
     if (formData.stackExperiences.some(exp => exp.stackId === tempStackExp.stackId)) {
       toast({ title: 'Stack já adicionada', variant: 'destructive' });
       return;
@@ -170,7 +173,7 @@ export default function Professionals() {
       ...formData,
       stackExperiences: [...formData.stackExperiences, { ...tempStackExp }],
     });
-    setTempStackExp({ stackId: '', seniorityId: '', yearsExperience: 1 });
+    setTempStackExp({ stackId: '', yearsExperience: 1 });
   };
 
   const removeStackExperience = (stackId: string) => {
@@ -192,6 +195,9 @@ export default function Professionals() {
 
   // Get leaders (professionals without leaderId who have others reporting to them)
   const leaders = professionals.filter(p => !p.leaderId);
+
+  // Sort general seniorities by level
+  const sortedSeniorities = [...generalSeniorities].sort((a, b) => a.level - b.level);
 
   return (
     <div className="space-y-6">
@@ -226,6 +232,22 @@ export default function Professionals() {
                     <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Senioridade Geral</Label>
+                    <Select value={formData.generalSeniorityId || 'none'} onValueChange={(v) => setFormData({ ...formData, generalSeniorityId: v === 'none' ? '' : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Não definida</SelectItem>
+                        {sortedSeniorities.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Anos Experiência Total</Label>
+                    <Input type="number" min="0" value={formData.totalYearsExperience} onChange={(e) => setFormData({ ...formData, totalYearsExperience: parseInt(e.target.value) || 0 })} />
+                  </div>
+                </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Status</Label>
@@ -252,49 +274,46 @@ export default function Professionals() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Anos Experiência Total</Label>
-                    <Input type="number" min="0" value={formData.totalYearsExperience} onChange={(e) => setFormData({ ...formData, totalYearsExperience: parseInt(e.target.value) || 0 })} />
+                    <Label>Líder</Label>
+                    <Select value={formData.leaderId || 'none'} onValueChange={(v) => setFormData({ ...formData, leaderId: v === 'none' ? '' : v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {leaders.map((leader) => (
+                          <SelectItem key={leader.id} value={leader.id}>{leader.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Líder</Label>
-                  <Select value={formData.leaderId || 'none'} onValueChange={(v) => setFormData({ ...formData, leaderId: v === 'none' ? '' : v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um líder (opcional)" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {leaders.map((leader) => (
-                        <SelectItem key={leader.id} value={leader.id}>{leader.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {/* Stack Experiences */}
+                {/* Stack Experiences - Simplified */}
                 <div className="space-y-2">
                   <Label>Experiências por Stack *</Label>
                   <div className="flex gap-2">
-                    <Select value={tempStackExp.stackId} onValueChange={(v) => setTempStackExp({ ...tempStackExp, stackId: v })}>
+                    <Select value={tempStackExp.stackId || 'none'} onValueChange={(v) => setTempStackExp({ ...tempStackExp, stackId: v === 'none' ? '' : v })}>
                       <SelectTrigger className="flex-1"><SelectValue placeholder="Stack" /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">Selecione uma stack</SelectItem>
                         {stacks.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Select value={tempStackExp.seniorityId} onValueChange={(v) => setTempStackExp({ ...tempStackExp, seniorityId: v })}>
-                      <SelectTrigger className="w-32"><SelectValue placeholder="Senioridade" /></SelectTrigger>
-                      <SelectContent>
-                        {seniorities.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input type="number" min="1" className="w-20" value={tempStackExp.yearsExperience} onChange={(e) => setTempStackExp({ ...tempStackExp, yearsExperience: parseInt(e.target.value) || 1 })} placeholder="Anos" />
-                    <Button type="button" variant="outline" onClick={addStackExperience}>+</Button>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      className="w-24" 
+                      value={tempStackExp.yearsExperience} 
+                      onChange={(e) => setTempStackExp({ ...tempStackExp, yearsExperience: parseInt(e.target.value) || 1 })} 
+                      placeholder="Anos" 
+                    />
+                    <Button type="button" variant="outline" onClick={addStackExperience} disabled={!tempStackExp.stackId}>+</Button>
                   </div>
                   {formData.stackExperiences.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {formData.stackExperiences.map((exp) => {
                         const stack = getStackById(exp.stackId);
-                        const seniority = getSeniorityById(exp.seniorityId);
                         return (
                           <Badge key={exp.stackId} variant="secondary" className="gap-1">
-                            {stack?.name} • {seniority?.name} • {exp.yearsExperience}a
+                            {stack?.name} • {exp.yearsExperience} {exp.yearsExperience === 1 ? 'ano' : 'anos'}
                             <X className="h-3 w-3 cursor-pointer" onClick={() => removeStackExperience(exp.stackId)} />
                           </Badge>
                         );
@@ -319,10 +338,17 @@ export default function Professionals() {
           <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
         </div>
         <Select value={stackFilter} onValueChange={setStackFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filtrar por stack" /></SelectTrigger>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filtrar por stack" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as stacks</SelectItem>
             {stacks.map((stack) => <SelectItem key={stack.id} value={stack.id}>{stack.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={seniorityFilter} onValueChange={setSeniorityFilter}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Senioridade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas senioridades</SelectItem>
+            {sortedSeniorities.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -334,6 +360,7 @@ export default function Professionals() {
             <TableHeader>
               <TableRow>
                 <TableHead>Profissional</TableHead>
+                <TableHead>Senioridade</TableHead>
                 <TableHead>Stacks</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Alocação Atual</TableHead>
@@ -343,7 +370,7 @@ export default function Professionals() {
             <TableBody>
               {filteredProfessionals.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <UserCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-muted-foreground">Nenhum profissional encontrado</p>
                   </TableCell>
@@ -351,15 +378,24 @@ export default function Professionals() {
               ) : (
                 filteredProfessionals.map((professional) => {
                   const allocationInfo = getAllocationInfo(professional.id);
+                  const generalSeniority = professional.generalSeniorityId 
+                    ? getGeneralSeniorityById(professional.generalSeniorityId) 
+                    : null;
                   return (
                     <TableRow key={professional.id}>
                       <TableCell className="font-medium">{professional.name}</TableCell>
                       <TableCell>
+                        {generalSeniority ? (
+                          <Badge variant="outline">{generalSeniority.name}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {professional.stackExperiences?.slice(0, 3).map((exp) => {
                             const stack = getStackById(exp.stackId);
-                            const seniority = getSeniorityById(exp.seniorityId);
-                            return <Badge key={exp.stackId} variant="outline">{stack?.name} ({seniority?.name})</Badge>;
+                            return <Badge key={exp.stackId} variant="secondary">{stack?.name} ({exp.yearsExperience}a)</Badge>;
                           })}
                           {professional.stackExperiences?.length > 3 && <Badge variant="secondary">+{professional.stackExperiences.length - 3}</Badge>}
                         </div>
