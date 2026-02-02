@@ -29,6 +29,7 @@ import {
   GeneralSeniority,
 } from '@/types';
 import { saveToStorage, loadFromStorage, generateId, getContractStatus, getDaysUntil } from '@/lib/storage';
+import { getAllocationEffectiveEndDate, isAllocationActive } from '@/lib/allocation';
 import {
   seedClients,
   seedContracts,
@@ -153,6 +154,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [seniorities, setSeniorities] = useState<Seniority[]>([]);
   const [generalSeniorities, setGeneralSeniorities] = useState<GeneralSeniority[]>([]);
 
+  // Prevent saving empty initial state before hydration.
+  const [isHydrated, setIsHydrated] = useState(false);
+
   // Load data from storage on mount
   useEffect(() => {
     setClients(loadFromStorage('clients', seedClients));
@@ -166,20 +170,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setStackCategories(loadFromStorage('stackCategories', seedStackCategories));
     setSeniorities(loadFromStorage('seniorities', seedSeniorities));
     setGeneralSeniorities(loadFromStorage('generalSeniorities', seedGeneralSeniorities));
+
+    setIsHydrated(true);
   }, []);
 
   // Persist to storage on changes
-  useEffect(() => { if (clients.length) saveToStorage('clients', clients); }, [clients]);
-  useEffect(() => { if (contracts.length) saveToStorage('contracts', contracts); }, [contracts]);
-  useEffect(() => { if (stacks.length) saveToStorage('stacks', stacks); }, [stacks]);
-  useEffect(() => { if (positions.length) saveToStorage('positions', positions); }, [positions]);
-  useEffect(() => { if (professionals.length) saveToStorage('professionals', professionals); }, [professionals]);
-  useEffect(() => { if (allocations.length) saveToStorage('allocations', allocations); }, [allocations]);
-  useEffect(() => { if (factoryProjects.length) saveToStorage('factoryProjects', factoryProjects); }, [factoryProjects]);
-  useEffect(() => { if (factoryAllocations.length) saveToStorage('factoryAllocations', factoryAllocations); }, [factoryAllocations]);
-  useEffect(() => { if (stackCategories.length) saveToStorage('stackCategories', stackCategories); }, [stackCategories]);
-  useEffect(() => { if (seniorities.length) saveToStorage('seniorities', seniorities); }, [seniorities]);
-  useEffect(() => { if (generalSeniorities.length) saveToStorage('generalSeniorities', generalSeniorities); }, [generalSeniorities]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('clients', clients); }, [clients, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('contracts', contracts); }, [contracts, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('stacks', stacks); }, [stacks, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('positions', positions); }, [positions, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('professionals', professionals); }, [professionals, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('allocations', allocations); }, [allocations, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('factoryProjects', factoryProjects); }, [factoryProjects, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('factoryAllocations', factoryAllocations); }, [factoryAllocations, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('stackCategories', stackCategories); }, [stackCategories, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('seniorities', seniorities); }, [seniorities, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('generalSeniorities', generalSeniorities); }, [generalSeniorities, isHydrated]);
 
   // Helpers
   const getClientById = useCallback((id: string) => clients.find(c => c.id === id), [clients]);
@@ -189,7 +195,34 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getProfessionalById = useCallback((id: string) => professionals.find(p => p.id === id), [professionals]);
   const getPositionsByContract = useCallback((contractId: string) => positions.filter(p => p.contractId === contractId), [positions]);
   const getAllocationsByPosition = useCallback((positionId: string) => allocations.filter(a => a.positionId === positionId), [allocations]);
-  const getProfessionalAllocation = useCallback((professionalId: string) => allocations.find(a => a.professionalId === professionalId && !a.endDate), [allocations]);
+
+  const getAllocationEndDate = useCallback((allocation: Allocation): string | null => {
+    const position = getPositionById(allocation.positionId);
+    return getAllocationEffectiveEndDate(allocation, position ?? null);
+  }, [getPositionById]);
+
+  const isAllocationActiveForPosition = useCallback((allocation: Allocation, at: Date = new Date()): boolean => {
+    const position = getPositionById(allocation.positionId);
+    return isAllocationActive(allocation, { position: position ?? null, at });
+  }, [getPositionById]);
+
+  const getProfessionalAllocation = useCallback((professionalId: string) => {
+    const activeAllocations = allocations
+      .filter(a => a.professionalId === professionalId)
+      .filter(a => isAllocationActiveForPosition(a));
+
+    if (!activeAllocations.length) return undefined;
+
+    activeAllocations.sort((a, b) => {
+      const aEnd = getAllocationEndDate(a);
+      const bEnd = getAllocationEndDate(b);
+      const aTs = aEnd ? new Date(aEnd).getTime() : 0;
+      const bTs = bEnd ? new Date(bEnd).getTime() : 0;
+      return bTs - aTs;
+    });
+
+    return activeAllocations[0];
+  }, [allocations, getAllocationEndDate, isAllocationActiveForPosition]);
   const getStackCategoryById = useCallback((id: string) => stackCategories.find(c => c.id === id), [stackCategories]);
   const getSeniorityById = useCallback((id: string) => seniorities.find(s => s.id === id), [seniorities]);
   const getGeneralSeniorityById = useCallback((id: string) => generalSeniorities.find(s => s.id === id), [generalSeniorities]);
@@ -269,7 +302,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const positionIds = contractsInGroup.flatMap(c => c.positions.map(p => p.id));
       const professionalIds = new Set(
         allocations
-          .filter(a => positionIds.includes(a.positionId) && !a.endDate)
+          .filter(a => positionIds.includes(a.positionId) && isAllocationActiveForPosition(a))
           .map(a => a.professionalId)
       );
 
@@ -283,7 +316,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return groups;
-  }, [contractsWithDetails, allocations]);
+  }, [contractsWithDetails, allocations, isAllocationActiveForPosition]);
 
   // Computed: Stack distributions
   const stackDistributions = useMemo<StackDistribution[]>(() => {
