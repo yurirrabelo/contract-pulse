@@ -26,6 +26,7 @@ import {
   StackCategory,
   Seniority,
   LeaderMetrics,
+  GeneralSeniority,
 } from '@/types';
 import { saveToStorage, loadFromStorage, generateId, getContractStatus, getDaysUntil } from '@/lib/storage';
 import {
@@ -39,6 +40,7 @@ import {
   seedFactoryAllocations,
   seedStackCategories,
   seedSeniorities,
+  seedGeneralSeniorities,
 } from '@/data/seedData';
 
 interface DataContextType {
@@ -53,6 +55,7 @@ interface DataContextType {
   factoryAllocations: FactoryAllocation[];
   stackCategories: StackCategory[];
   seniorities: Seniority[];
+  generalSeniorities: GeneralSeniority[];
 
   // Computed
   contractsWithDetails: ContractWithDetails[];
@@ -106,6 +109,11 @@ interface DataContextType {
   updateSeniority: (id: string, seniority: Partial<Seniority>) => void;
   deleteSeniority: (id: string) => void;
 
+  // General Seniority CRUD
+  addGeneralSeniority: (seniority: Omit<GeneralSeniority, 'id' | 'createdAt'>) => GeneralSeniority;
+  updateGeneralSeniority: (id: string, seniority: Partial<GeneralSeniority>) => void;
+  deleteGeneralSeniority: (id: string) => void;
+
   // Factory CRUD
   addFactoryProject: (project: Omit<FactoryProject, 'id' | 'createdAt'>) => FactoryProject;
   updateFactoryProject: (id: string, project: Partial<FactoryProject>) => void;
@@ -126,6 +134,7 @@ interface DataContextType {
   getProfessionalAllocation: (professionalId: string) => Allocation | undefined;
   getStackCategoryById: (id: string) => StackCategory | undefined;
   getSeniorityById: (id: string) => Seniority | undefined;
+  getGeneralSeniorityById: (id: string) => GeneralSeniority | undefined;
   getProfessionalPrimaryStack: (professional: Professional) => Stack | undefined;
 }
 
@@ -142,6 +151,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [factoryAllocations, setFactoryAllocations] = useState<FactoryAllocation[]>([]);
   const [stackCategories, setStackCategories] = useState<StackCategory[]>([]);
   const [seniorities, setSeniorities] = useState<Seniority[]>([]);
+  const [generalSeniorities, setGeneralSeniorities] = useState<GeneralSeniority[]>([]);
 
   // Load data from storage on mount
   useEffect(() => {
@@ -155,6 +165,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setFactoryAllocations(loadFromStorage('factoryAllocations', seedFactoryAllocations));
     setStackCategories(loadFromStorage('stackCategories', seedStackCategories));
     setSeniorities(loadFromStorage('seniorities', seedSeniorities));
+    setGeneralSeniorities(loadFromStorage('generalSeniorities', seedGeneralSeniorities));
   }, []);
 
   // Persist to storage on changes
@@ -168,6 +179,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (factoryAllocations.length) saveToStorage('factoryAllocations', factoryAllocations); }, [factoryAllocations]);
   useEffect(() => { if (stackCategories.length) saveToStorage('stackCategories', stackCategories); }, [stackCategories]);
   useEffect(() => { if (seniorities.length) saveToStorage('seniorities', seniorities); }, [seniorities]);
+  useEffect(() => { if (generalSeniorities.length) saveToStorage('generalSeniorities', generalSeniorities); }, [generalSeniorities]);
 
   // Helpers
   const getClientById = useCallback((id: string) => clients.find(c => c.id === id), [clients]);
@@ -180,6 +192,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getProfessionalAllocation = useCallback((professionalId: string) => allocations.find(a => a.professionalId === professionalId && !a.endDate), [allocations]);
   const getStackCategoryById = useCallback((id: string) => stackCategories.find(c => c.id === id), [stackCategories]);
   const getSeniorityById = useCallback((id: string) => seniorities.find(s => s.id === id), [seniorities]);
+  const getGeneralSeniorityById = useCallback((id: string) => generalSeniorities.find(s => s.id === id), [generalSeniorities]);
   
   // Get professional's primary stack (first in stackExperiences with highest seniority)
   const getProfessionalPrimaryStack = useCallback((professional: Professional) => {
@@ -841,6 +854,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setSeniorities(prev => prev.filter(s => s.id !== id));
   }, []);
 
+  // General Seniority CRUD
+  const addGeneralSeniority = useCallback((seniority: Omit<GeneralSeniority, 'id' | 'createdAt'>) => {
+    const newSeniority: GeneralSeniority = {
+      ...seniority,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setGeneralSeniorities(prev => [...prev, newSeniority]);
+    return newSeniority;
+  }, []);
+
+  const updateGeneralSeniority = useCallback((id: string, updates: Partial<GeneralSeniority>) => {
+    setGeneralSeniorities(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
+  const deleteGeneralSeniority = useCallback((id: string) => {
+    setGeneralSeniorities(prev => prev.filter(s => s.id !== id));
+  }, []);
+
   // Factory CRUD
   const addFactoryProject = useCallback((project: Omit<FactoryProject, 'id' | 'createdAt'>) => {
     const newProject: FactoryProject = {
@@ -893,6 +925,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         factoryAllocations,
         stackCategories,
         seniorities,
+        generalSeniorities,
         contractsWithDetails,
         dashboardMetrics,
         expiringContractsGroups,
@@ -930,6 +963,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         addSeniority,
         updateSeniority,
         deleteSeniority,
+        addGeneralSeniority,
+        updateGeneralSeniority,
+        deleteGeneralSeniority,
         addFactoryProject,
         updateFactoryProject,
         deleteFactoryProject,
@@ -946,6 +982,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         getProfessionalAllocation,
         getStackCategoryById,
         getSeniorityById,
+        getGeneralSeniorityById,
         getProfessionalPrimaryStack,
       }}
     >

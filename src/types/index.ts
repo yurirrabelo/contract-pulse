@@ -86,10 +86,18 @@ export interface Position {
 export type ProfessionalWorkMode = 'allocation' | 'factory' | 'both';
 export type ProfessionalStatus = 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice';
 
-// Experience per stack
+// General Seniority (A1-C5 system)
+export interface GeneralSeniority {
+  id: string;
+  name: string;
+  level: number; // For ordering
+  description?: string;
+  createdAt: string;
+}
+
+// Experience per stack (simplified - only stack and years)
 export interface ProfessionalStackExperience {
   stackId: string;
-  seniorityId: string;
   yearsExperience: number; // Years in this specific stack (< 2 = 1)
 }
 
@@ -97,7 +105,8 @@ export interface Professional {
   id: string;
   name: string;
   email?: string;
-  stackExperiences: ProfessionalStackExperience[]; // Multiple stacks with experience
+  generalSeniorityId?: string; // Reference to GeneralSeniority (A1, B2, etc.)
+  stackExperiences: ProfessionalStackExperience[]; // Multiple stacks with experience time
   status: ProfessionalStatus;
   workMode: ProfessionalWorkMode;
   leaderId?: string; // Reference to another Professional

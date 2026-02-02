@@ -38,6 +38,9 @@ const navSections = [
       { path: '/positions', label: 'Vagas', icon: Briefcase },
       { path: '/professionals', label: 'Profissionais', icon: UserCircle },
       { path: '/stacks', label: 'Stacks', icon: Layers },
+      { path: '/stack-categories', label: 'Categorias de Stack', icon: Layers },
+      { path: '/seniorities', label: 'Senioridades por Stack', icon: Layers },
+      { path: '/general-seniorities', label: 'Senioridade Geral', icon: Layers },
     ],
   },
   {

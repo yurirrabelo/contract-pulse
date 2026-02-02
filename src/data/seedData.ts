@@ -10,7 +10,8 @@ import {
   FactoryAllocation,
   StackCategory,
   Seniority,
-  ProfessionalStackExperience
+  ProfessionalStackExperience,
+  GeneralSeniority
 } from '@/types';
 
 // Helper to create dates relative to today
@@ -26,6 +27,48 @@ const daysAgo = (days: number): string => {
   return date.toISOString().split('T')[0];
 };
 
+// Seed General Seniorities (A1-C5 Hero Journey system)
+export const seedGeneralSeniorities: GeneralSeniority[] = [
+  // A Level
+  { id: 'gs-1', name: 'A1', level: 1, description: 'Nível inicial', createdAt: daysAgo(400) },
+  { id: 'gs-2', name: 'A2', level: 2, createdAt: daysAgo(400) },
+  { id: 'gs-3', name: 'A3', level: 3, createdAt: daysAgo(400) },
+  { id: 'gs-4', name: 'A4', level: 4, createdAt: daysAgo(400) },
+  { id: 'gs-5', name: 'A5', level: 5, createdAt: daysAgo(400) },
+  { id: 'gs-6', name: 'A6', level: 6, createdAt: daysAgo(400) },
+  { id: 'gs-7', name: 'A7', level: 7, createdAt: daysAgo(400) },
+  { id: 'gs-8', name: 'A8', level: 8, createdAt: daysAgo(400) },
+  { id: 'gs-9', name: 'A9', level: 9, createdAt: daysAgo(400) },
+  { id: 'gs-10', name: 'A10', level: 10, createdAt: daysAgo(400) },
+  { id: 'gs-11', name: 'A11', level: 11, createdAt: daysAgo(400) },
+  // B Level
+  { id: 'gs-12', name: 'B1', level: 12, createdAt: daysAgo(400) },
+  { id: 'gs-13', name: 'B2', level: 13, createdAt: daysAgo(400) },
+  { id: 'gs-14', name: 'B3', level: 14, createdAt: daysAgo(400) },
+  { id: 'gs-15', name: 'B4', level: 15, createdAt: daysAgo(400) },
+  { id: 'gs-16', name: 'B5', level: 16, createdAt: daysAgo(400) },
+  { id: 'gs-17', name: 'B6', level: 17, createdAt: daysAgo(400) },
+  // P Level
+  { id: 'gs-18', name: 'P1', level: 18, createdAt: daysAgo(400) },
+  { id: 'gs-19', name: 'P2', level: 19, createdAt: daysAgo(400) },
+  { id: 'gs-20', name: 'P3', level: 20, createdAt: daysAgo(400) },
+  { id: 'gs-21', name: 'P4', level: 21, createdAt: daysAgo(400) },
+  { id: 'gs-22', name: 'P5', level: 22, createdAt: daysAgo(400) },
+  { id: 'gs-23', name: 'P6', level: 23, createdAt: daysAgo(400) },
+  // T Level
+  { id: 'gs-24', name: 'T1', level: 24, createdAt: daysAgo(400) },
+  { id: 'gs-25', name: 'T2', level: 25, createdAt: daysAgo(400) },
+  { id: 'gs-26', name: 'T3', level: 26, createdAt: daysAgo(400) },
+  { id: 'gs-27', name: 'T4', level: 27, createdAt: daysAgo(400) },
+  { id: 'gs-28', name: 'T5', level: 28, createdAt: daysAgo(400) },
+  // C Level
+  { id: 'gs-29', name: 'C1', level: 29, createdAt: daysAgo(400) },
+  { id: 'gs-30', name: 'C2', level: 30, createdAt: daysAgo(400) },
+  { id: 'gs-31', name: 'C3', level: 31, createdAt: daysAgo(400) },
+  { id: 'gs-32', name: 'C4', level: 32, createdAt: daysAgo(400) },
+  { id: 'gs-33', name: 'C5', level: 33, description: 'Nível máximo', createdAt: daysAgo(400) },
+];
+
 // Seed Stack Categories (Dynamic)
 export const seedStackCategories: StackCategory[] = [
   { id: 'cat-1', name: 'Desenvolvimento', description: 'Stacks de desenvolvimento de software', createdAt: daysAgo(400) },
@@ -35,7 +78,7 @@ export const seedStackCategories: StackCategory[] = [
   { id: 'cat-5', name: 'Design', description: 'Stacks de design e UX', createdAt: daysAgo(400) },
 ];
 
-// Seed Seniorities (Hero Journey)
+// Seed Seniorities (per stack category)
 export const seedSeniorities: Seniority[] = [
   // Desenvolvimento
   { id: 'sen-1', name: 'Trainee', level: 1, categoryId: 'cat-1', description: 'Em treinamento', createdAt: daysAgo(400) },
@@ -150,112 +193,112 @@ export const seedPositions: Position[] = [
 // Leaders first (they will be referenced by others)
 const leaderIds = ['prof-2', 'prof-11', 'prof-15', 'prof-18'];
 
-// Seed Professionals with new structure
+// Seed Professionals with new structure (simplified stack experiences - only stackId and yearsExperience)
 export const seedProfessionals: Professional[] = [
   // Leaders
-  { id: 'prof-2', name: 'Carlos Eduardo Santos', email: 'carlos.santos@company.com', stackExperiences: [
-    { stackId: 'stack-11', seniorityId: 'sen-5', yearsExperience: 8 },
-    { stackId: 'stack-1', seniorityId: 'sen-4', yearsExperience: 6 },
-    { stackId: 'stack-2', seniorityId: 'sen-4', yearsExperience: 5 },
+  { id: 'prof-2', name: 'Carlos Eduardo Santos', email: 'carlos.santos@company.com', generalSeniorityId: 'gs-28', stackExperiences: [
+    { stackId: 'stack-11', yearsExperience: 8 },
+    { stackId: 'stack-1', yearsExperience: 6 },
+    { stackId: 'stack-2', yearsExperience: 5 },
   ], status: 'allocated', workMode: 'both', totalYearsExperience: 12, createdAt: daysAgo(340) },
-  { id: 'prof-11', name: 'Camila Ferreira', email: 'camila.ferreira@company.com', stackExperiences: [
-    { stackId: 'stack-8', seniorityId: 'sen-11', yearsExperience: 7 },
-    { stackId: 'stack-9', seniorityId: 'sen-10', yearsExperience: 5 },
+  { id: 'prof-11', name: 'Camila Ferreira', email: 'camila.ferreira@company.com', generalSeniorityId: 'gs-25', stackExperiences: [
+    { stackId: 'stack-8', yearsExperience: 7 },
+    { stackId: 'stack-9', yearsExperience: 5 },
   ], status: 'partial', workMode: 'both', totalYearsExperience: 10, createdAt: daysAgo(250) },
-  { id: 'prof-15', name: 'Tatiana Ribeiro', email: 'tatiana.ribeiro@company.com', stackExperiences: [
-    { stackId: 'stack-9', seniorityId: 'sen-11', yearsExperience: 8 },
-    { stackId: 'stack-8', seniorityId: 'sen-10', yearsExperience: 5 },
+  { id: 'prof-15', name: 'Tatiana Ribeiro', email: 'tatiana.ribeiro@company.com', generalSeniorityId: 'gs-26', stackExperiences: [
+    { stackId: 'stack-9', yearsExperience: 8 },
+    { stackId: 'stack-8', yearsExperience: 5 },
   ], status: 'allocated', workMode: 'factory', totalYearsExperience: 11, createdAt: daysAgo(210) },
-  { id: 'prof-18', name: 'Gustavo Pereira', email: 'gustavo.pereira@company.com', stackExperiences: [
-    { stackId: 'stack-11', seniorityId: 'sen-5', yearsExperience: 9 },
-    { stackId: 'stack-1', seniorityId: 'sen-4', yearsExperience: 7 },
+  { id: 'prof-18', name: 'Gustavo Pereira', email: 'gustavo.pereira@company.com', generalSeniorityId: 'gs-29', stackExperiences: [
+    { stackId: 'stack-11', yearsExperience: 9 },
+    { stackId: 'stack-1', yearsExperience: 7 },
   ], status: 'allocated', workMode: 'factory', totalYearsExperience: 14, createdAt: daysAgo(180) },
   
   // Regular professionals with leaders
-  { id: 'prof-1', name: 'Ana Beatriz Silva', email: 'ana.silva@company.com', stackExperiences: [
-    { stackId: 'stack-1', seniorityId: 'sen-4', yearsExperience: 5 },
-    { stackId: 'stack-12', seniorityId: 'sen-3', yearsExperience: 3 },
+  { id: 'prof-1', name: 'Ana Beatriz Silva', email: 'ana.silva@company.com', generalSeniorityId: 'gs-20', stackExperiences: [
+    { stackId: 'stack-1', yearsExperience: 5 },
+    { stackId: 'stack-12', yearsExperience: 3 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-2', totalYearsExperience: 7, createdAt: daysAgo(350) },
-  { id: 'prof-3', name: 'Maria Fernanda Costa', email: 'maria.costa@company.com', stackExperiences: [
-    { stackId: 'stack-6', seniorityId: 'sen-7', yearsExperience: 3 },
-    { stackId: 'stack-7', seniorityId: 'sen-6', yearsExperience: 1 },
+  { id: 'prof-3', name: 'Maria Fernanda Costa', email: 'maria.costa@company.com', generalSeniorityId: 'gs-15', stackExperiences: [
+    { stackId: 'stack-6', yearsExperience: 3 },
+    { stackId: 'stack-7', yearsExperience: 1 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-11', totalYearsExperience: 4, createdAt: daysAgo(330) },
-  { id: 'prof-4', name: 'João Pedro Oliveira', email: 'joao.oliveira@company.com', stackExperiences: [
-    { stackId: 'stack-12', seniorityId: 'sen-3', yearsExperience: 4 },
-    { stackId: 'stack-1', seniorityId: 'sen-3', yearsExperience: 3 },
-    { stackId: 'stack-2', seniorityId: 'sen-2', yearsExperience: 1 },
+  { id: 'prof-4', name: 'João Pedro Oliveira', email: 'joao.oliveira@company.com', generalSeniorityId: 'gs-17', stackExperiences: [
+    { stackId: 'stack-12', yearsExperience: 4 },
+    { stackId: 'stack-1', yearsExperience: 3 },
+    { stackId: 'stack-2', yearsExperience: 1 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-2', totalYearsExperience: 5, createdAt: daysAgo(320) },
-  { id: 'prof-5', name: 'Luciana Almeida', email: 'luciana.almeida@company.com', stackExperiences: [
-    { stackId: 'stack-5', seniorityId: 'sen-4', yearsExperience: 6 },
+  { id: 'prof-5', name: 'Luciana Almeida', email: 'luciana.almeida@company.com', generalSeniorityId: 'gs-21', stackExperiences: [
+    { stackId: 'stack-5', yearsExperience: 6 },
   ], status: 'partial', workMode: 'both', leaderId: 'prof-18', totalYearsExperience: 8, createdAt: daysAgo(310) },
-  { id: 'prof-6', name: 'Roberto Lima', email: 'roberto.lima@company.com', stackExperiences: [
-    { stackId: 'stack-4', seniorityId: 'sen-4', yearsExperience: 7 },
-    { stackId: 'stack-3', seniorityId: 'sen-3', yearsExperience: 3 },
+  { id: 'prof-6', name: 'Roberto Lima', email: 'roberto.lima@company.com', generalSeniorityId: 'gs-22', stackExperiences: [
+    { stackId: 'stack-4', yearsExperience: 7 },
+    { stackId: 'stack-3', yearsExperience: 3 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 9, createdAt: daysAgo(300) },
-  { id: 'prof-7', name: 'Fernanda Rodrigues', email: 'fernanda.rodrigues@company.com', stackExperiences: [
-    { stackId: 'stack-3', seniorityId: 'sen-3', yearsExperience: 4 },
-    { stackId: 'stack-2', seniorityId: 'sen-2', yearsExperience: 2 },
+  { id: 'prof-7', name: 'Fernanda Rodrigues', email: 'fernanda.rodrigues@company.com', generalSeniorityId: 'gs-18', stackExperiences: [
+    { stackId: 'stack-3', yearsExperience: 4 },
+    { stackId: 'stack-2', yearsExperience: 2 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 5, createdAt: daysAgo(290) },
-  { id: 'prof-8', name: 'Marcos Vinícius', email: 'marcos.vinicius@company.com', stackExperiences: [
-    { stackId: 'stack-2', seniorityId: 'sen-3', yearsExperience: 4 },
-    { stackId: 'stack-1', seniorityId: 'sen-2', yearsExperience: 2 },
+  { id: 'prof-8', name: 'Marcos Vinícius', email: 'marcos.vinicius@company.com', generalSeniorityId: 'gs-18', stackExperiences: [
+    { stackId: 'stack-2', yearsExperience: 4 },
+    { stackId: 'stack-1', yearsExperience: 2 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-2', totalYearsExperience: 5, createdAt: daysAgo(280) },
-  { id: 'prof-9', name: 'Patricia Souza', email: 'patricia.souza@company.com', stackExperiences: [
-    { stackId: 'stack-10', seniorityId: 'sen-10', yearsExperience: 5 },
-    { stackId: 'stack-9', seniorityId: 'sen-9', yearsExperience: 3 },
+  { id: 'prof-9', name: 'Patricia Souza', email: 'patricia.souza@company.com', generalSeniorityId: 'gs-20', stackExperiences: [
+    { stackId: 'stack-10', yearsExperience: 5 },
+    { stackId: 'stack-9', yearsExperience: 3 },
   ], status: 'partial', workMode: 'both', leaderId: 'prof-15', totalYearsExperience: 7, createdAt: daysAgo(270) },
-  { id: 'prof-10', name: 'Ricardo Mendes', email: 'ricardo.mendes@company.com', stackExperiences: [
-    { stackId: 'stack-1', seniorityId: 'sen-3', yearsExperience: 4 },
+  { id: 'prof-10', name: 'Ricardo Mendes', email: 'ricardo.mendes@company.com', generalSeniorityId: 'gs-15', stackExperiences: [
+    { stackId: 'stack-1', yearsExperience: 4 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-2', totalYearsExperience: 4, createdAt: daysAgo(260) },
-  { id: 'prof-12', name: 'Bruno Carvalho', email: 'bruno.carvalho@company.com', stackExperiences: [
-    { stackId: 'stack-2', seniorityId: 'sen-3', yearsExperience: 4 },
-    { stackId: 'stack-5', seniorityId: 'sen-2', yearsExperience: 1 },
+  { id: 'prof-12', name: 'Bruno Carvalho', email: 'bruno.carvalho@company.com', generalSeniorityId: 'gs-17', stackExperiences: [
+    { stackId: 'stack-2', yearsExperience: 4 },
+    { stackId: 'stack-5', yearsExperience: 1 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 5, createdAt: daysAgo(240) },
-  { id: 'prof-13', name: 'Juliana Martins', email: 'juliana.martins@company.com', stackExperiences: [
-    { stackId: 'stack-5', seniorityId: 'sen-4', yearsExperience: 6 },
+  { id: 'prof-13', name: 'Juliana Martins', email: 'juliana.martins@company.com', generalSeniorityId: 'gs-20', stackExperiences: [
+    { stackId: 'stack-5', yearsExperience: 6 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 7, createdAt: daysAgo(230) },
-  { id: 'prof-14', name: 'André Nascimento', email: 'andre.nascimento@company.com', stackExperiences: [
-    { stackId: 'stack-4', seniorityId: 'sen-4', yearsExperience: 6 },
+  { id: 'prof-14', name: 'André Nascimento', email: 'andre.nascimento@company.com', generalSeniorityId: 'gs-21', stackExperiences: [
+    { stackId: 'stack-4', yearsExperience: 6 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 8, createdAt: daysAgo(220) },
-  { id: 'prof-16', name: 'Felipe Gomes', email: 'felipe.gomes@company.com', stackExperiences: [
-    { stackId: 'stack-3', seniorityId: 'sen-3', yearsExperience: 4 },
+  { id: 'prof-16', name: 'Felipe Gomes', email: 'felipe.gomes@company.com', generalSeniorityId: 'gs-15', stackExperiences: [
+    { stackId: 'stack-3', yearsExperience: 4 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-2', totalYearsExperience: 4, createdAt: daysAgo(200) },
-  { id: 'prof-17', name: 'Amanda Dias', email: 'amanda.dias@company.com', stackExperiences: [
-    { stackId: 'stack-6', seniorityId: 'sen-7', yearsExperience: 4 },
-    { stackId: 'stack-7', seniorityId: 'sen-6', yearsExperience: 2 },
+  { id: 'prof-17', name: 'Amanda Dias', email: 'amanda.dias@company.com', generalSeniorityId: 'gs-17', stackExperiences: [
+    { stackId: 'stack-6', yearsExperience: 4 },
+    { stackId: 'stack-7', yearsExperience: 2 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-11', totalYearsExperience: 5, createdAt: daysAgo(190) },
-  { id: 'prof-19', name: 'Renata Castro', email: 'renata.castro@company.com', stackExperiences: [
-    { stackId: 'stack-1', seniorityId: 'sen-4', yearsExperience: 5 },
-    { stackId: 'stack-12', seniorityId: 'sen-3', yearsExperience: 3 },
+  { id: 'prof-19', name: 'Renata Castro', email: 'renata.castro@company.com', generalSeniorityId: 'gs-19', stackExperiences: [
+    { stackId: 'stack-1', yearsExperience: 5 },
+    { stackId: 'stack-12', yearsExperience: 3 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 6, createdAt: daysAgo(170) },
-  { id: 'prof-20', name: 'Diego Barbosa', email: 'diego.barbosa@company.com', stackExperiences: [
-    { stackId: 'stack-4', seniorityId: 'sen-4', yearsExperience: 6 },
+  { id: 'prof-20', name: 'Diego Barbosa', email: 'diego.barbosa@company.com', generalSeniorityId: 'gs-20', stackExperiences: [
+    { stackId: 'stack-4', yearsExperience: 6 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 7, createdAt: daysAgo(160) },
-  { id: 'prof-21', name: 'Isabela Moreira', email: 'isabela.moreira@company.com', stackExperiences: [
-    { stackId: 'stack-5', seniorityId: 'sen-4', yearsExperience: 5 },
+  { id: 'prof-21', name: 'Isabela Moreira', email: 'isabela.moreira@company.com', generalSeniorityId: 'gs-19', stackExperiences: [
+    { stackId: 'stack-5', yearsExperience: 5 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 6, createdAt: daysAgo(150) },
-  { id: 'prof-22', name: 'Thiago Araújo', email: 'thiago.araujo@company.com', stackExperiences: [
-    { stackId: 'stack-7', seniorityId: 'sen-8', yearsExperience: 6 },
-    { stackId: 'stack-6', seniorityId: 'sen-7', yearsExperience: 4 },
+  { id: 'prof-22', name: 'Thiago Araújo', email: 'thiago.araujo@company.com', generalSeniorityId: 'gs-20', stackExperiences: [
+    { stackId: 'stack-7', yearsExperience: 6 },
+    { stackId: 'stack-6', yearsExperience: 4 },
   ], status: 'allocated', workMode: 'factory', leaderId: 'prof-11', totalYearsExperience: 7, createdAt: daysAgo(140) },
-  { id: 'prof-23', name: 'Vanessa Lopes', email: 'vanessa.lopes@company.com', stackExperiences: [
-    { stackId: 'stack-12', seniorityId: 'sen-3', yearsExperience: 4 },
+  { id: 'prof-23', name: 'Vanessa Lopes', email: 'vanessa.lopes@company.com', generalSeniorityId: 'gs-15', stackExperiences: [
+    { stackId: 'stack-12', yearsExperience: 4 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-2', totalYearsExperience: 4, createdAt: daysAgo(130) },
-  { id: 'prof-24', name: 'Leonardo Cardoso', email: 'leonardo.cardoso@company.com', stackExperiences: [
-    { stackId: 'stack-8', seniorityId: 'sen-10', yearsExperience: 5 },
+  { id: 'prof-24', name: 'Leonardo Cardoso', email: 'leonardo.cardoso@company.com', generalSeniorityId: 'gs-18', stackExperiences: [
+    { stackId: 'stack-8', yearsExperience: 5 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-11', totalYearsExperience: 6, createdAt: daysAgo(120) },
-  { id: 'prof-25', name: 'Mariana Santos', email: 'mariana.santos@company.com', stackExperiences: [
-    { stackId: 'stack-13', seniorityId: 'sen-5', yearsExperience: 10 },
-    { stackId: 'stack-11', seniorityId: 'sen-4', yearsExperience: 8 },
+  { id: 'prof-25', name: 'Mariana Santos', email: 'mariana.santos@company.com', generalSeniorityId: 'gs-27', stackExperiences: [
+    { stackId: 'stack-13', yearsExperience: 10 },
+    { stackId: 'stack-11', yearsExperience: 8 },
   ], status: 'idle', workMode: 'factory', leaderId: 'prof-18', totalYearsExperience: 12, createdAt: daysAgo(110) },
-  { id: 'prof-26', name: 'Paulo Henrique', email: 'paulo.henrique@company.com', stackExperiences: [
-    { stackId: 'stack-14', seniorityId: 'sen-16', yearsExperience: 4 },
+  { id: 'prof-26', name: 'Paulo Henrique', email: 'paulo.henrique@company.com', generalSeniorityId: 'gs-17', stackExperiences: [
+    { stackId: 'stack-14', yearsExperience: 4 },
   ], status: 'partial', workMode: 'factory', leaderId: 'prof-11', totalYearsExperience: 5, createdAt: daysAgo(100) },
-  { id: 'prof-27', name: 'Carla Mendonça', email: 'carla.mendonca@company.com', stackExperiences: [
-    { stackId: 'stack-1', seniorityId: 'sen-3', yearsExperience: 4 },
+  { id: 'prof-27', name: 'Carla Mendonça', email: 'carla.mendonca@company.com', generalSeniorityId: 'gs-15', stackExperiences: [
+    { stackId: 'stack-1', yearsExperience: 4 },
   ], status: 'allocated', workMode: 'allocation', leaderId: 'prof-2', totalYearsExperience: 4, createdAt: daysAgo(90) },
-  { id: 'prof-28', name: 'Eduardo Freitas', email: 'eduardo.freitas@company.com', stackExperiences: [
-    { stackId: 'stack-6', seniorityId: 'sen-6', yearsExperience: 1 },
+  { id: 'prof-28', name: 'Eduardo Freitas', email: 'eduardo.freitas@company.com', generalSeniorityId: 'gs-6', stackExperiences: [
+    { stackId: 'stack-6', yearsExperience: 1 },
   ], status: 'idle', workMode: 'factory', leaderId: 'prof-11', totalYearsExperience: 2, createdAt: daysAgo(80) },
 ];
 

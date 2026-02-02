@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { Contract } from '@/types';
-import { formatDate, formatCurrency, getContractStatus, getDaysUntil } from '@/lib/storage';
+import { Contract, Position } from '@/types';
+import { formatDate, getContractStatus, getDaysUntil } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,7 +45,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, FileText, Search } from 'lucide-react';
+import { Plus, Trash2, FileText, Search, X, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const statusConfig = {
@@ -56,21 +56,27 @@ const statusConfig = {
   expired: { label: 'Encerrado', variant: 'secondary' as const, className: '' },
 };
 
+interface PositionFormData {
+  title: string;
+  stackId: string;
+  allocationPercentage: number;
+}
+
 export default function Contracts() {
   const { 
     contracts, 
     clients, 
+    stacks,
     getClientById, 
     getPositionsByContract,
     addContract, 
-    updateContract, 
-    deleteContract 
+    deleteContract,
+    addPosition,
   } = useData();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Form state
@@ -84,11 +90,20 @@ export default function Contracts() {
     monthlyValue: '',
   });
 
+  // Positions to be created with the contract
+  const [newPositions, setNewPositions] = useState<PositionFormData[]>([]);
+  const [tempPosition, setTempPosition] = useState<PositionFormData>({
+    title: '',
+    stackId: '',
+    allocationPercentage: 100,
+  });
+
   const filteredContracts = contracts.filter((contract) => {
     const client = getClientById(contract.clientId);
     const matchesSearch = 
       contract.contractNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      client?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contract.projectName?.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (statusFilter === 'all') return matchesSearch;
     
@@ -96,31 +111,32 @@ export default function Contracts() {
     return matchesSearch && status === statusFilter;
   });
 
-  const handleOpenDialog = (contract?: Contract) => {
-    if (contract) {
-      setEditingContract(contract);
-      setFormData({
-        clientId: contract.clientId,
-        contractNumber: contract.contractNumber,
-        projectName: contract.projectName || '',
-        type: contract.type || 'staffing',
-        startDate: contract.startDate,
-        endDate: contract.endDate,
-        monthlyValue: contract.monthlyValue.toString(),
-      });
-    } else {
-      setEditingContract(null);
-      setFormData({
-        clientId: '',
-        contractNumber: '',
-        projectName: '',
-        type: 'staffing',
-        startDate: '',
-        endDate: '',
-        monthlyValue: '',
-      });
-    }
+  const handleOpenDialog = () => {
+    setFormData({
+      clientId: '',
+      contractNumber: '',
+      projectName: '',
+      type: 'staffing',
+      startDate: '',
+      endDate: '',
+      monthlyValue: '',
+    });
+    setNewPositions([]);
+    setTempPosition({ title: '', stackId: '', allocationPercentage: 100 });
     setIsDialogOpen(true);
+  };
+
+  const addPositionToList = () => {
+    if (!tempPosition.title || !tempPosition.stackId) {
+      toast({ title: 'Preencha título e stack da vaga', variant: 'destructive' });
+      return;
+    }
+    setNewPositions([...newPositions, { ...tempPosition }]);
+    setTempPosition({ title: '', stackId: '', allocationPercentage: 100 });
+  };
+
+  const removePositionFromList = (index: number) => {
+    setNewPositions(newPositions.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -135,6 +151,16 @@ export default function Contracts() {
       return;
     }
 
+    if (newPositions.length === 0) {
+      toast({
+        title: 'Vagas obrigatórias',
+        description: 'Adicione pelo menos uma vaga ao contrato.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Create the contract
     const contractData = {
       clientId: formData.clientId,
       contractNumber: formData.contractNumber,
@@ -145,22 +171,27 @@ export default function Contracts() {
       monthlyValue: parseFloat(formData.monthlyValue) || 0,
     };
 
-    if (editingContract) {
-      updateContract(editingContract.id, contractData);
-      toast({
-        title: 'Contrato atualizado',
-        description: 'As informações foram salvas com sucesso.',
+    const newContract = addContract(contractData);
+
+    // Create all positions for this contract
+    newPositions.forEach((pos) => {
+      addPosition({
+        contractId: newContract.id,
+        title: pos.title,
+        stackId: pos.stackId,
+        status: 'open',
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        allocationPercentage: pos.allocationPercentage,
       });
-    } else {
-      addContract(contractData);
-      toast({
-        title: 'Contrato criado',
-        description: 'O novo contrato foi adicionado com sucesso.',
-      });
-    }
+    });
+
+    toast({
+      title: 'Contrato criado',
+      description: `Contrato criado com ${newPositions.length} vaga(s).`,
+    });
 
     setIsDialogOpen(false);
-    setEditingContract(null);
   };
 
   const handleDelete = () => {
@@ -174,141 +205,205 @@ export default function Contracts() {
     }
   };
 
+  const getStackName = (stackId: string) => stacks.find(s => s.id === stackId)?.name || '';
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Contratos</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie os contratos de alocação
+            Gerencie os contratos de alocação e fábrica
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
+            <Button onClick={handleOpenDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Contrato
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
-              </DialogTitle>
+              <DialogTitle>Novo Contrato</DialogTitle>
               <DialogDescription>
-                {editingContract
-                  ? 'Atualize as informações do contrato.'
-                  : 'Preencha os dados para cadastrar um novo contrato.'}
+                Preencha os dados do contrato e adicione as vagas. Para contratos de alocação, não será possível editar após a criação.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="client">Cliente *</Label>
-                  <Select
-                    value={formData.clientId}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, clientId: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="projectName">Nome do Projeto</Label>
-                  <Input
-                    id="projectName"
-                    value={formData.projectName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, projectName: e.target.value })
-                    }
-                    placeholder="Nome do projeto"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo *</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value: 'staffing' | 'fabrica') =>
-                      setFormData({ ...formData, type: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="staffing">Staffing</SelectItem>
-                      <SelectItem value="fabrica">Fábrica</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contractNumber">Número do Contrato *</Label>
-                  <Input
-                    id="contractNumber"
-                    value={formData.contractNumber}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contractNumber: e.target.value })
-                    }
-                    placeholder="CTR-2024-001"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Data de Início *</Label>
-                    <Input
-                      id="startDate"
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, startDate: e.target.value })
-                      }
-                    />
+              <div className="space-y-6 py-4">
+                {/* Contract Details */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Dados do Contrato</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client">Cliente *</Label>
+                      <Select
+                        value={formData.clientId}
+                        onValueChange={(value) => setFormData({ ...formData, clientId: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clients.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="type">Tipo *</Label>
+                      <Select
+                        value={formData.type}
+                        onValueChange={(value: 'staffing' | 'fabrica') => setFormData({ ...formData, type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="staffing">Staffing (Alocação)</SelectItem>
+                          <SelectItem value="fabrica">Fábrica</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate">Data de Fim *</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, endDate: e.target.value })
-                      }
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="contractNumber">Número do Contrato *</Label>
+                      <Input
+                        id="contractNumber"
+                        value={formData.contractNumber}
+                        onChange={(e) => setFormData({ ...formData, contractNumber: e.target.value })}
+                        placeholder="CTR-2024-001"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="projectName">Nome do Projeto</Label>
+                      <Input
+                        id="projectName"
+                        value={formData.projectName}
+                        onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
+                        placeholder="Nome do projeto"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startDate">Data de Início *</Label>
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">Data de Fim *</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
-                {/* <div className="space-y-2">
-                  <Label htmlFor="monthlyValue">Valor Mensal (R$)</Label>
-                  <Input
-                    id="monthlyValue"
-                    type="number"
-                    value={formData.monthlyValue}
-                    onChange={(e) =>
-                      setFormData({ ...formData, monthlyValue: e.target.value })
-                    }
-                    placeholder="0.00"
-                  />
-                </div> */}
+
+                {/* Positions Section */}
+                <div className="space-y-4 border-t pt-4">
+                  <h3 className="font-semibold">Vagas do Contrato *</h3>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Título da vaga"
+                      value={tempPosition.title}
+                      onChange={(e) => setTempPosition({ ...tempPosition, title: e.target.value })}
+                      className="flex-1"
+                    />
+                    <Select 
+                      value={tempPosition.stackId || 'none'} 
+                      onValueChange={(v) => setTempPosition({ ...tempPosition, stackId: v === 'none' ? '' : v })}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Stack" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecione</SelectItem>
+                        {stacks.map((stack) => (
+                          <SelectItem key={stack.id} value={stack.id}>{stack.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100"
+                      placeholder="%"
+                      value={tempPosition.allocationPercentage}
+                      onChange={(e) => setTempPosition({ ...tempPosition, allocationPercentage: parseInt(e.target.value) || 100 })}
+                      className="w-20"
+                    />
+                    <Button type="button" variant="outline" onClick={addPositionToList}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {newPositions.length > 0 ? (
+                    <div className="border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Vaga</TableHead>
+                            <TableHead>Stack</TableHead>
+                            <TableHead className="w-20">%</TableHead>
+                            <TableHead className="w-12"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {newPositions.map((pos, index) => (
+                            <TableRow key={index}>
+                              <TableCell>{pos.title}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{getStackName(pos.stackId)}</Badge>
+                              </TableCell>
+                              <TableCell>{pos.allocationPercentage}%</TableCell>
+                              <TableCell>
+                                <Button 
+                                  type="button"
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => removePositionFromList(index)}
+                                >
+                                  <X className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground border rounded-lg">
+                      Adicione pelo menos uma vaga para criar o contrato
+                    </div>
+                  )}
+                </div>
+
+                {formData.type === 'staffing' && (
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm text-muted-foreground">
+                    <strong>Atenção:</strong> Contratos de Staffing não podem ser editados após a criação. 
+                    Para alterações, será necessário criar um novo contrato.
+                  </div>
+                )}
               </div>
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit">
-                  {editingContract ? 'Salvar' : 'Criar'}
+                <Button type="submit" disabled={newPositions.length === 0}>
+                  Criar Contrato
                 </Button>
               </DialogFooter>
             </form>
@@ -321,7 +416,7 @@ export default function Contracts() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por número ou cliente..."
+            placeholder="Buscar por número, cliente ou projeto..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -349,12 +444,12 @@ export default function Contracts() {
             <TableHeader>
               <TableRow>
                 <TableHead>Contrato</TableHead>
-                <TableHead>Cliente</TableHead>
+                <TableHead>Cliente / Projeto</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead>Período</TableHead>
-                {/* <TableHead>Valor Mensal</TableHead> */}
                 <TableHead className="text-center">Vagas</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
+                <TableHead className="w-[80px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -384,7 +479,19 @@ export default function Contracts() {
                       <TableCell className="font-medium font-mono">
                         {contract.contractNumber}
                       </TableCell>
-                      <TableCell>{client?.name || '-'}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div className="font-medium">{client?.name || '-'}</div>
+                          {contract.projectName && (
+                            <div className="text-muted-foreground">{contract.projectName}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {contract.type === 'staffing' ? 'Staffing' : 'Fábrica'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="text-sm">
                           <div>{formatDate(contract.startDate)}</div>
@@ -393,11 +500,10 @@ export default function Contracts() {
                           </div>
                         </div>
                       </TableCell>
-                      {/* <TableCell className="font-medium">
-                        {formatCurrency(contract.monthlyValue)}
-                      </TableCell> */}
                       <TableCell className="text-center">
-                        {positions.filter(p => p.status === 'filled').length}/{positions.length}
+                        <span className="font-medium">
+                          {positions.filter(p => p.status === 'filled').length}/{positions.length}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge 
@@ -411,22 +517,13 @@ export default function Contracts() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDialog(contract)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteId(contract.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteId(contract.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -443,8 +540,7 @@ export default function Contracts() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir contrato?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O contrato será removido
-              permanentemente do sistema.
+              Esta ação não pode ser desfeita. O contrato e todas as suas vagas serão removidos permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
