@@ -30,7 +30,7 @@ export function AllocationTimeline({ allocations }: AllocationTimelineProps) {
   const filteredAllocations = useMemo(() => {
     return allocations.filter(a => {
       if (typeFilter !== 'all' && a.contractType !== typeFilter) return false;
-      if (categoryFilter !== 'all' && a.stackCategory !== categoryFilter) return false;
+      if (categoryFilter !== 'all' && a.categoryName !== categoryFilter) return false;
       return true;
     });
   }, [allocations, typeFilter, categoryFilter]);
