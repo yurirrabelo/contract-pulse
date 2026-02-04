@@ -66,44 +66,504 @@ Authorization: Bearer <token>
 
 ---
 
+# Schemas
+
 ## Enums
 
-### ContractType
 ```typescript
+// Contract type
 type ContractType = "staffing" | "fabrica";
-```
 
-### ContractStatus (computed)
-```typescript
+// Contract status (computed from endDate)
 type ContractStatus = "active" | "expiring30" | "expiring60" | "expiring90" | "expired";
-```
 
-### PositionStatus
-```typescript
+// Position status
 type PositionStatus = "open" | "filled";
-```
 
-### ProfessionalStatus (computed from allocations)
-```typescript
+// Professional status (computed from allocations)
 type ProfessionalStatus = "allocated" | "idle" | "partial" | "vacation" | "notice";
-```
 
-### ProfessionalWorkMode
-```typescript
+// Professional work mode
 type ProfessionalWorkMode = "allocation" | "factory" | "both";
-```
 
-### FactoryProjectStatus
-```typescript
+// Factory project status
 type FactoryProjectStatus = "planned" | "inProgress" | "finished" | "paused";
-```
 
-### FactoryRole
-```typescript
+// Factory role
 type FactoryRole = "dev" | "qa" | "po" | "pm" | "techLead" | "architect" | "scrumMaster" | "ux" | "other";
 ```
 
 ---
+
+## Base Entity Schemas
+
+### Client
+
+```typescript
+interface Client {
+  id: string;                    // UUID
+  name: string;                  // Required, max 255 chars
+  cnpj: string;                  // Required, unique, format XX.XXX.XXX/XXXX-XX
+  contact: string;               // Required, email format
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface ClientWithSummary extends Client {
+  activeContracts: number;       // Computed: count of active contracts
+  totalPositions: number;        // Computed: sum of positions in active contracts
+  filledPositions: number;       // Computed: sum of filled positions in active contracts
+}
+```
+
+### Contract
+
+```typescript
+interface Contract {
+  id: string;                    // UUID
+  clientId: string;              // UUID, required, FK to Client
+  contractNumber: string;        // Required, unique, max 50 chars
+  projectName?: string;          // Optional, max 255 chars
+  type: ContractType;            // Required: "staffing" | "fabrica"
+  startDate: string;             // Required, ISO 8601 date (YYYY-MM-DD)
+  endDate: string;               // Required, ISO 8601 date (YYYY-MM-DD)
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface ContractWithDetails extends Contract {
+  status: ContractStatus;        // Computed from endDate
+  daysUntilExpiration: number;   // Computed: days until endDate
+  client: ClientRef;             // Nested client reference
+  totalPositions: number;        // Computed: count of positions
+  filledPositions: number;       // Computed: count of filled positions
+  positions?: PositionWithDetails[]; // Optional: full position list
+}
+
+interface ClientRef {
+  id: string;
+  name: string;
+  cnpj?: string;
+  contact?: string;
+}
+```
+
+### Position
+
+```typescript
+interface Position {
+  id: string;                    // UUID
+  contractId: string;            // UUID, required, FK to Contract
+  title: string;                 // Required, max 255 chars
+  stackId: string;               // UUID, required, FK to Stack
+  seniorityId?: string;          // UUID, optional, FK to Seniority
+  status: PositionStatus;        // "open" | "filled"
+  startDate: string;             // ISO 8601 date
+  endDate: string;               // ISO 8601 date
+  allocationPercentage: number;  // Required, 1-100
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface PositionWithDetails extends Position {
+  contract: ContractRef;         // Nested contract reference
+  client: ClientRef;             // Nested client reference
+  stack: StackRef;               // Nested stack reference
+  seniority?: SeniorityRef;      // Nested seniority reference
+  professional?: ProfessionalRef; // Null if status = "open"
+}
+
+interface ContractRef {
+  id: string;
+  contractNumber: string;
+  projectName?: string;
+}
+
+interface StackRef {
+  id: string;
+  name: string;
+  categoryId?: string;
+  categoryName?: string;
+}
+
+interface SeniorityRef {
+  id: string;
+  name: string;
+  level: number;
+}
+
+interface ProfessionalRef {
+  id: string;
+  name: string;
+}
+```
+
+### Allocation (Staffing)
+
+```typescript
+interface Allocation {
+  id: string;                    // UUID
+  professionalId: string;        // UUID, required, FK to Professional
+  positionId: string;            // UUID, required, FK to Position
+  startDate: string;             // Required, ISO 8601 date
+  endDate?: string;              // Optional, ISO 8601 date (null = ongoing)
+  allocationPercentage: number;  // Required, 1-100
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface AllocationWithDetails extends Allocation {
+  professional: ProfessionalRef;
+  position: PositionRef;
+  client: ClientRef;
+  contract: ContractRef;
+  stack: StackRef;
+}
+
+interface PositionRef {
+  id: string;
+  title: string;
+}
+```
+
+### Professional
+
+```typescript
+interface StackExperience {
+  stackId: string;               // UUID, FK to Stack
+  yearsExperience: number;       // Min 1 (< 2 years normalized to 1)
+}
+
+interface StackExperienceWithDetails extends StackExperience {
+  stackName: string;
+  categoryName: string;
+}
+
+interface Professional {
+  id: string;                    // UUID
+  name: string;                  // Required, max 255 chars
+  email?: string;                // Optional, email format
+  generalSeniorityId?: string;   // UUID, optional, FK to GeneralSeniority
+  stackExperiences: StackExperience[]; // Array of stack experiences
+  status: ProfessionalStatus;    // Computed from allocations
+  workMode: ProfessionalWorkMode; // Required: "allocation" | "factory" | "both"
+  leaderId?: string;             // UUID, optional, FK to Professional
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface ProfessionalWithDetails extends Professional {
+  generalSeniority?: GeneralSeniorityRef;
+  stackExperiences: StackExperienceWithDetails[];
+  leader?: ProfessionalRef;
+  totalAllocationPercentage: number; // Computed: sum of active allocations
+  currentAllocation?: CurrentAllocationInfo; // Current staffing allocation
+  allocations: AllocationInfo[];      // All staffing allocations
+  factoryAllocations: FactoryAllocationInfo[]; // All factory allocations
+}
+
+interface GeneralSeniorityRef {
+  id: string;
+  name: string;
+  level: number;
+}
+
+interface CurrentAllocationInfo {
+  positionId: string;
+  positionTitle: string;
+  clientName: string;
+  projectName: string;
+  allocationPercentage: number;
+  endDate: string;
+}
+
+interface AllocationInfo {
+  id: string;
+  positionId: string;
+  positionTitle: string;
+  clientName: string;
+  projectName: string;
+  contractType: ContractType;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+}
+
+interface FactoryAllocationInfo {
+  id: string;
+  projectId: string;
+  projectName: string;
+  role: FactoryRole;
+  stackName: string;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+}
+```
+
+### Stack Category
+
+```typescript
+interface StackCategory {
+  id: string;                    // UUID
+  name: string;                  // Required, unique, max 100 chars
+  description?: string;          // Optional, max 500 chars
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface StackCategoryWithCount extends StackCategory {
+  stackCount: number;            // Computed: count of stacks in category
+}
+```
+
+### Stack
+
+```typescript
+interface Stack {
+  id: string;                    // UUID
+  name: string;                  // Required, max 100 chars
+  categoryId: string;            // UUID, required, FK to StackCategory
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface StackWithDetails extends Stack {
+  categoryName: string;          // From category
+  professionalCount: number;     // Computed: professionals with this stack
+  positionCount: number;         // Computed: positions requiring this stack
+  filledPositions: number;       // Computed: filled positions with this stack
+}
+```
+
+### General Seniority
+
+```typescript
+interface GeneralSeniority {
+  id: string;                    // UUID
+  name: string;                  // Required, unique, max 50 chars (e.g., "A1", "B2", "C5")
+  level: number;                 // Required, unique, for ordering (1 = lowest)
+  description?: string;          // Optional, max 255 chars
+  createdAt: string;             // ISO 8601 datetime
+}
+```
+
+### Factory Project
+
+```typescript
+interface FactoryProject {
+  id: string;                    // UUID
+  name: string;                  // Required, max 255 chars
+  clientId?: string;             // UUID, optional, FK to Client
+  description: string;           // Required, max 2000 chars
+  startDate: string;             // Required, ISO 8601 date
+  endDate: string;               // Required, ISO 8601 date
+  status: FactoryProjectStatus;  // Required
+  progressPercentage: number;    // 0-100, can be manual or calculated
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface FactoryProjectWithDetails extends FactoryProject {
+  client?: ClientRef;            // Nested client reference
+  totalMembers: number;          // Computed: count of allocations
+  daysRemaining: number;         // Computed: days until endDate
+  daysElapsed: number;           // Computed: days since startDate
+  totalDays: number;             // Computed: total project duration
+  calculatedProgress: number;    // Computed: daysElapsed / totalDays * 100
+  allocations: FactoryAllocationWithDetails[];
+}
+```
+
+### Factory Allocation
+
+```typescript
+interface FactoryAllocation {
+  id: string;                    // UUID
+  projectId: string;             // UUID, required, FK to FactoryProject
+  professionalId: string;        // UUID, required, FK to Professional
+  role: FactoryRole;             // Required
+  stackId: string;               // UUID, required, FK to Stack
+  startDate: string;             // Required, ISO 8601 date
+  endDate: string;               // Required, ISO 8601 date
+  allocationPercentage: number;  // Required, 1-100
+  createdAt: string;             // ISO 8601 datetime
+}
+
+interface FactoryAllocationWithDetails extends FactoryAllocation {
+  professional: ProfessionalWithSeniority;
+  stack: StackRef;
+  professionalName?: string;     // Shortcut field
+  stackName?: string;            // Shortcut field
+}
+
+interface ProfessionalWithSeniority {
+  id: string;
+  name: string;
+  generalSeniority?: GeneralSeniorityRef;
+}
+```
+
+---
+
+## Dashboard Schemas
+
+### Dashboard Metrics
+
+```typescript
+interface DashboardMetrics {
+  totalContracts: number;
+  activeContracts: number;
+  staffingContracts: number;
+  fabricaContracts: number;
+  totalClients: number;
+  totalProfessionals: number;
+  totalPositions: number;
+  filledPositions: number;
+  openPositions: number;
+}
+```
+
+### Occupancy Forecast
+
+```typescript
+interface OccupancyForecast {
+  period: 30 | 60 | 90;
+  currentAllocated: number;      // Currently allocated professionals
+  predictedIdle: number;         // Predicted to become idle
+  occupancyRate: number;         // Percentage (0-100)
+  predictedIdleProfessionals: IdleProfessionalForecast[];
+}
+
+interface IdleProfessionalForecast {
+  professionalId: string;
+  professionalName: string;
+  stackName: string;
+  currentClientName: string;
+  currentProjectName: string;
+  allocationEndDate: string;
+  daysUntilIdle: number;
+}
+```
+
+### Allocation Timeline
+
+```typescript
+interface AllocationTimelineEntry {
+  id: string;
+  professionalId: string;
+  professionalName: string;
+  positionTitle: string;
+  stackName: string;
+  categoryName: string;
+  clientName: string;
+  projectName: string;
+  contractType: ContractType;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+}
+```
+
+### Stack Distribution
+
+```typescript
+interface StackDistribution {
+  stackId: string;
+  stackName: string;
+  categoryId: string;
+  categoryName: string;
+  professionalCount: number;
+  positionCount: number;
+  filledPositions: number;
+}
+```
+
+### Team View
+
+```typescript
+interface TeamView {
+  contractId: string;
+  contractNumber: string;
+  projectName: string;
+  clientName: string;
+  contractType: ContractType;
+  startDate: string;
+  endDate: string;
+  status: ContractStatus;
+  daysUntilExpiration: number;
+  totalPositions: number;
+  filledPositions: number;
+  members: TeamMember[];
+}
+
+interface TeamMember {
+  professionalId: string;
+  professionalName: string;
+  positionTitle: string;
+  stackName: string;
+  categoryName: string;
+  startDate: string;
+  endDate: string;
+  allocationPercentage: number;
+}
+```
+
+---
+
+## Factory Dashboard Schemas
+
+### Factory Metrics
+
+```typescript
+interface FactoryMetrics {
+  totalProjects: number;
+  activeProjects: number;
+  plannedProjects: number;
+  finishedProjects: number;
+  pausedProjects: number;
+  totalFactoryProfessionals: number;
+  currentOccupancyRate: number;
+  occupancy30Days: number;
+  occupancy60Days: number;
+  occupancy90Days: number;
+}
+```
+
+### Factory Idle Forecast
+
+```typescript
+interface FactoryIdleForecast {
+  period: 30 | 60 | 90;
+  currentAllocated: number;
+  predictedIdle: number;
+  occupancyRate: number;
+  idleProfessionals: FactoryIdleProfessional[];
+}
+
+interface FactoryIdleProfessional {
+  professionalId: string;
+  professionalName: string;
+  stackName: string;
+  currentProjectName: string;
+  allocationEndDate: string;
+  daysUntilIdle: number;
+}
+```
+
+### Factory Gantt
+
+```typescript
+interface FactoryGanttEntry {
+  id: string;
+  type: "project" | "professional";
+  name: string;
+  projectId?: string;            // Only for type = "professional"
+  projectName?: string;          // Only for type = "professional"
+  role?: FactoryRole;            // Only for type = "professional"
+  stackName?: string;            // Only for type = "professional"
+  startDate: string;
+  endDate: string;
+  progress?: number;             // Only for type = "project"
+  status?: FactoryProjectStatus; // Only for type = "project"
+}
+```
+
+---
+
+# Endpoints
 
 ## 1. Clients
 
@@ -119,19 +579,41 @@ List all clients with summary data.
 | perPage | integer | 20 | Items per page |
 | search | string | - | Search by name or CNPJ |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetClientsRequest {
+  page?: number;
+  perPage?: number;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetClientsResponse {
+  success: true;
+  data: ClientWithSummary[];
+  meta: {
+    total: number;
+    page: number;
+    perPage: number;
+  };
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/clients?page=1&perPage=20&search=tech
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "name": "TechCorp Brasil",
       "cnpj": "12.345.678/0001-90",
       "contact": "contato@techcorp.com.br",
@@ -149,18 +631,35 @@ Authorization: Bearer <token>
 
 ### GET /clients/:id
 
-**Request:**
+Get a single client by ID.
+
+**Request Schema:**
+```typescript
+interface GetClientByIdRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetClientByIdResponse {
+  success: true;
+  data: Client;
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/clients/550e8400-e29b-41d4-a716-446655440001
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440001",
     "name": "TechCorp Brasil",
     "cnpj": "12.345.678/0001-90",
     "contact": "contato@techcorp.com.br",
@@ -173,7 +672,26 @@ Authorization: Bearer <token>
 
 ### POST /clients
 
-**Request:**
+Create a new client.
+
+**Request Schema:**
+```typescript
+interface CreateClientRequest {
+  name: string;      // Required, max 255 chars
+  cnpj: string;      // Required, unique, format XX.XXX.XXX/XXXX-XX
+  contact: string;   // Required, email format
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateClientResponse {
+  success: true;
+  data: Client;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/clients
 Authorization: Bearer <token>
@@ -186,12 +704,12 @@ Content-Type: application/json
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440002",
     "name": "Nova Empresa S.A.",
     "cnpj": "11.222.333/0001-44",
     "contact": "comercial@novaempresa.com.br",
@@ -204,9 +722,28 @@ Content-Type: application/json
 
 ### PUT /clients/:id
 
-**Request:**
+Update an existing client.
+
+**Request Schema:**
+```typescript
+interface UpdateClientRequest {
+  name?: string;     // Max 255 chars
+  cnpj?: string;     // Format XX.XXX.XXX/XXXX-XX
+  contact?: string;  // Email format
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateClientResponse {
+  success: true;
+  data: Client;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/clients/uuid
+PUT /api/v1/clients/550e8400-e29b-41d4-a716-446655440001
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -216,12 +753,12 @@ Content-Type: application/json
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440001",
     "name": "TechCorp Brasil Atualizado",
     "cnpj": "12.345.678/0001-90",
     "contact": "novo-contato@techcorp.com.br",
@@ -234,13 +771,30 @@ Content-Type: application/json
 
 ### DELETE /clients/:id
 
-**Request:**
+Delete a client.
+
+**Request Schema:**
+```typescript
+interface DeleteClientRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteClientResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/clients/uuid
+DELETE /api/v1/clients/550e8400-e29b-41d4-a716-446655440001
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -248,7 +802,7 @@ Authorization: Bearer <token>
 }
 ```
 
-**Response (409 - has active contracts):**
+**Example Response (409 - has active contracts):**
 ```json
 {
   "success": false,
@@ -279,20 +833,45 @@ List all contracts with computed status.
 | status | string | - | Filter by computed status |
 | search | string | - | Search by contractNumber, projectName, clientName |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetContractsRequest {
+  page?: number;
+  perPage?: number;
+  clientId?: string;
+  type?: ContractType;
+  status?: ContractStatus;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetContractsResponse {
+  success: true;
+  data: ContractWithDetails[];
+  meta: {
+    total: number;
+    page: number;
+    perPage: number;
+  };
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/contracts?type=staffing&status=active
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
-      "clientId": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440010",
+      "clientId": "550e8400-e29b-41d4-a716-446655440001",
       "contractNumber": "CTR-2024-001",
       "projectName": "Sistema de Gestão",
       "type": "staffing",
@@ -302,7 +881,7 @@ Authorization: Bearer <token>
       "status": "active",
       "daysUntilExpiration": 180,
       "client": {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440001",
         "name": "TechCorp Brasil"
       },
       "totalPositions": 5,
@@ -317,19 +896,39 @@ Authorization: Bearer <token>
 
 ### GET /contracts/:id
 
-**Request:**
+Get a single contract with full details including positions.
+
+**Request Schema:**
+```typescript
+interface GetContractByIdRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetContractByIdResponse {
+  success: true;
+  data: ContractWithDetails & {
+    client: Client;
+    positions: PositionWithDetails[];
+  };
+}
+```
+
+**Example Request:**
 ```http
-GET /api/v1/contracts/uuid
+GET /api/v1/contracts/550e8400-e29b-41d4-a716-446655440010
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "clientId": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440010",
+    "clientId": "550e8400-e29b-41d4-a716-446655440001",
     "contractNumber": "CTR-2024-001",
     "projectName": "Sistema de Gestão",
     "type": "staffing",
@@ -339,23 +938,32 @@ Authorization: Bearer <token>
     "status": "active",
     "daysUntilExpiration": 180,
     "client": {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "name": "TechCorp Brasil",
       "cnpj": "12.345.678/0001-90",
       "contact": "contato@techcorp.com.br"
     },
+    "totalPositions": 5,
+    "filledPositions": 3,
     "positions": [
       {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440020",
+        "contractId": "550e8400-e29b-41d4-a716-446655440010",
         "title": "Desenvolvedor Full Stack Senior",
-        "stackId": "uuid",
-        "stackName": "React",
+        "stackId": "550e8400-e29b-41d4-a716-446655440030",
+        "seniorityId": "550e8400-e29b-41d4-a716-446655440040",
         "status": "filled",
         "startDate": "2024-01-01",
         "endDate": "2024-12-31",
         "allocationPercentage": 100,
+        "createdAt": "2024-01-05T08:00:00Z",
+        "stack": {
+          "id": "550e8400-e29b-41d4-a716-446655440030",
+          "name": "React",
+          "categoryName": "Frontend"
+        },
         "professional": {
-          "id": "uuid",
+          "id": "550e8400-e29b-41d4-a716-446655440050",
           "name": "João Silva"
         }
       }
@@ -370,14 +978,44 @@ Authorization: Bearer <token>
 
 Create contract with positions (positions are required).
 
-**Request:**
+**Request Schema:**
+```typescript
+interface CreateContractRequest {
+  clientId: string;              // Required, UUID
+  contractNumber: string;        // Required, unique
+  projectName?: string;          // Optional
+  type: ContractType;            // Required
+  startDate: string;             // Required, ISO 8601 date
+  endDate: string;               // Required, ISO 8601 date
+  positions: CreatePositionInput[]; // Required, min 1
+}
+
+interface CreatePositionInput {
+  title: string;                 // Required
+  stackId: string;               // Required, UUID
+  seniorityId?: string;          // Optional, UUID
+  allocationPercentage: number;  // Required, 1-100
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateContractResponse {
+  success: true;
+  data: Contract & {
+    positions: Position[];
+  };
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/contracts
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "clientId": "uuid",
+  "clientId": "550e8400-e29b-41d4-a716-446655440001",
   "contractNumber": "CTR-2024-010",
   "projectName": "Novo Projeto Mobile",
   "type": "staffing",
@@ -386,26 +1024,26 @@ Content-Type: application/json
   "positions": [
     {
       "title": "Mobile Developer Senior",
-      "stackId": "uuid",
-      "seniorityId": "uuid",
+      "stackId": "550e8400-e29b-41d4-a716-446655440030",
+      "seniorityId": "550e8400-e29b-41d4-a716-446655440040",
       "allocationPercentage": 100
     },
     {
       "title": "UX Designer",
-      "stackId": "uuid",
+      "stackId": "550e8400-e29b-41d4-a716-446655440031",
       "allocationPercentage": 50
     }
   ]
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "clientId": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440011",
+    "clientId": "550e8400-e29b-41d4-a716-446655440001",
     "contractNumber": "CTR-2024-010",
     "projectName": "Novo Projeto Mobile",
     "type": "staffing",
@@ -414,30 +1052,35 @@ Content-Type: application/json
     "createdAt": "2024-03-15T10:00:00Z",
     "positions": [
       {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440021",
+        "contractId": "550e8400-e29b-41d4-a716-446655440011",
         "title": "Mobile Developer Senior",
-        "stackId": "uuid",
-        "seniorityId": "uuid",
+        "stackId": "550e8400-e29b-41d4-a716-446655440030",
+        "seniorityId": "550e8400-e29b-41d4-a716-446655440040",
         "status": "open",
         "startDate": "2024-04-01",
         "endDate": "2025-03-31",
-        "allocationPercentage": 100
+        "allocationPercentage": 100,
+        "createdAt": "2024-03-15T10:00:00Z"
       },
       {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440022",
+        "contractId": "550e8400-e29b-41d4-a716-446655440011",
         "title": "UX Designer",
-        "stackId": "uuid",
+        "stackId": "550e8400-e29b-41d4-a716-446655440031",
+        "seniorityId": null,
         "status": "open",
         "startDate": "2024-04-01",
         "endDate": "2025-03-31",
-        "allocationPercentage": 50
+        "allocationPercentage": 50,
+        "createdAt": "2024-03-15T10:00:00Z"
       }
     ]
   }
 }
 ```
 
-**Response (422 - no positions):**
+**Example Response (422 - no positions):**
 ```json
 {
   "success": false,
@@ -452,13 +1095,30 @@ Content-Type: application/json
 
 ### DELETE /contracts/:id
 
-**Request:**
+Delete a contract and all associated positions.
+
+**Request Schema:**
+```typescript
+interface DeleteContractRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteContractResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/contracts/uuid
+DELETE /api/v1/contracts/550e8400-e29b-41d4-a716-446655440010
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -485,40 +1145,71 @@ List all positions with contract and allocation details.
 | stackId | uuid | - | Filter by stack |
 | search | string | - | Search by title, clientName, projectName, stackName |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetPositionsRequest {
+  page?: number;
+  perPage?: number;
+  contractId?: string;
+  status?: PositionStatus;
+  stackId?: string;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetPositionsResponse {
+  success: true;
+  data: PositionWithDetails[];
+  meta: {
+    total: number;
+    page: number;
+    perPage: number;
+  };
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/positions?status=open
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
-      "contractId": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440020",
+      "contractId": "550e8400-e29b-41d4-a716-446655440010",
       "title": "Desenvolvedor Full Stack Senior",
-      "stackId": "uuid",
-      "seniorityId": "uuid",
+      "stackId": "550e8400-e29b-41d4-a716-446655440030",
+      "seniorityId": "550e8400-e29b-41d4-a716-446655440040",
       "status": "open",
       "startDate": "2024-01-01",
       "endDate": "2024-12-31",
       "allocationPercentage": 100,
       "createdAt": "2024-01-05T08:00:00Z",
       "contract": {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440010",
         "contractNumber": "CTR-2024-001",
         "projectName": "Sistema de Gestão"
       },
       "client": {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440001",
         "name": "TechCorp Brasil"
       },
       "stack": {
-        "id": "uuid",
-        "name": "React"
+        "id": "550e8400-e29b-41d4-a716-446655440030",
+        "name": "React",
+        "categoryName": "Frontend"
+      },
+      "seniority": {
+        "id": "550e8400-e29b-41d4-a716-446655440040",
+        "name": "B2",
+        "level": 4
       },
       "professional": null
     }
@@ -533,28 +1224,47 @@ Authorization: Bearer <token>
 
 Update position details.
 
-**Request:**
+**Request Schema:**
+```typescript
+interface UpdatePositionRequest {
+  title?: string;
+  stackId?: string;
+  seniorityId?: string | null;
+  allocationPercentage?: number;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdatePositionResponse {
+  success: true;
+  data: Position;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/positions/uuid
+PUT /api/v1/positions/550e8400-e29b-41d4-a716-446655440020
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "title": "Senior Developer",
-  "stackId": "uuid",
+  "stackId": "550e8400-e29b-41d4-a716-446655440030",
   "allocationPercentage": 100
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "contractId": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440020",
+    "contractId": "550e8400-e29b-41d4-a716-446655440010",
     "title": "Senior Developer",
-    "stackId": "uuid",
+    "stackId": "550e8400-e29b-41d4-a716-446655440030",
+    "seniorityId": "550e8400-e29b-41d4-a716-446655440040",
     "status": "open",
     "startDate": "2024-01-01",
     "endDate": "2024-12-31",
@@ -568,13 +1278,30 @@ Content-Type: application/json
 
 ### DELETE /positions/:id
 
-**Request:**
+Delete a position.
+
+**Request Schema:**
+```typescript
+interface DeletePositionRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeletePositionResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/positions/uuid
+DELETE /api/v1/positions/550e8400-e29b-41d4-a716-446655440020
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -590,29 +1317,48 @@ Authorization: Bearer <token>
 
 Assign a professional to a position.
 
-**Request:**
+**Request Schema:**
+```typescript
+interface CreateAllocationRequest {
+  professionalId: string;        // Required, UUID
+  positionId: string;            // Required, UUID
+  startDate: string;             // Required, ISO 8601 date
+  endDate?: string;              // Optional, ISO 8601 date
+  allocationPercentage: number;  // Required, 1-100
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateAllocationResponse {
+  success: true;
+  data: Allocation;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/allocations
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "professionalId": "uuid",
-  "positionId": "uuid",
+  "professionalId": "550e8400-e29b-41d4-a716-446655440050",
+  "positionId": "550e8400-e29b-41d4-a716-446655440020",
   "startDate": "2024-01-15",
   "endDate": "2024-12-31",
   "allocationPercentage": 100
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "professionalId": "uuid",
-    "positionId": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440060",
+    "professionalId": "550e8400-e29b-41d4-a716-446655440050",
+    "positionId": "550e8400-e29b-41d4-a716-446655440020",
     "startDate": "2024-01-15",
     "endDate": "2024-12-31",
     "allocationPercentage": 100,
@@ -621,7 +1367,7 @@ Content-Type: application/json
 }
 ```
 
-**Response (409 - allocation conflict):**
+**Example Response (409 - allocation conflict):**
 ```json
 {
   "success": false,
@@ -634,7 +1380,7 @@ Content-Type: application/json
       "totalAllocation": 130,
       "conflicts": [
         {
-          "positionId": "uuid",
+          "positionId": "550e8400-e29b-41d4-a716-446655440021",
           "positionTitle": "Backend Developer",
           "clientName": "Other Client",
           "allocationPercentage": 80,
@@ -653,13 +1399,28 @@ Content-Type: application/json
 
 Unassign a professional from a position.
 
-**Request:**
+**Request Schema:**
+```typescript
+interface DeleteAllocationRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteAllocationResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/allocations/uuid
+DELETE /api/v1/allocations/550e8400-e29b-41d4-a716-446655440060
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -685,38 +1446,82 @@ List all professionals with computed status.
 | generalSeniorityId | uuid | - | Filter by seniority |
 | status | string | - | "allocated", "idle", "partial" |
 | workMode | string | - | "allocation", "factory", "both" |
+| leaderId | uuid | - | Filter by leader |
 | search | string | - | Search by name or stackName |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetProfessionalsRequest {
+  page?: number;
+  perPage?: number;
+  stackId?: string;
+  generalSeniorityId?: string;
+  status?: ProfessionalStatus;
+  workMode?: ProfessionalWorkMode;
+  leaderId?: string;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetProfessionalsResponse {
+  success: true;
+  data: ProfessionalListItem[];
+  meta: {
+    total: number;
+    page: number;
+    perPage: number;
+  };
+}
+
+interface ProfessionalListItem {
+  id: string;
+  name: string;
+  email?: string;
+  generalSeniorityId?: string;
+  generalSeniority?: GeneralSeniorityRef;
+  stackExperiences: StackExperienceWithDetails[];
+  status: ProfessionalStatus;
+  workMode: ProfessionalWorkMode;
+  leaderId?: string;
+  leader?: ProfessionalRef;
+  totalAllocationPercentage: number;
+  createdAt: string;
+  currentAllocation?: CurrentAllocationInfo;
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/professionals?status=idle
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440050",
       "name": "João Silva",
       "email": "joao@email.com",
-      "generalSeniorityId": "uuid",
+      "generalSeniorityId": "550e8400-e29b-41d4-a716-446655440040",
       "generalSeniority": {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440040",
         "name": "B2",
         "level": 4
       },
       "stackExperiences": [
         {
-          "stackId": "uuid",
+          "stackId": "550e8400-e29b-41d4-a716-446655440030",
           "stackName": "React",
           "categoryName": "Frontend",
           "yearsExperience": 5
         },
         {
-          "stackId": "uuid",
+          "stackId": "550e8400-e29b-41d4-a716-446655440031",
           "stackName": "Node.js",
           "categoryName": "Backend",
           "yearsExperience": 3
@@ -724,15 +1529,15 @@ Authorization: Bearer <token>
       ],
       "status": "allocated",
       "workMode": "both",
-      "leaderId": "uuid",
+      "leaderId": "550e8400-e29b-41d4-a716-446655440051",
       "leader": {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440051",
         "name": "Maria Santos"
       },
       "totalAllocationPercentage": 100,
       "createdAt": "2024-01-10T08:00:00Z",
       "currentAllocation": {
-        "positionId": "uuid",
+        "positionId": "550e8400-e29b-41d4-a716-446655440020",
         "positionTitle": "Senior Developer",
         "clientName": "TechCorp Brasil",
         "projectName": "Sistema de Gestão",
@@ -749,29 +1554,46 @@ Authorization: Bearer <token>
 
 ### GET /professionals/:id
 
-**Request:**
+Get a single professional with full details.
+
+**Request Schema:**
+```typescript
+interface GetProfessionalByIdRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetProfessionalByIdResponse {
+  success: true;
+  data: ProfessionalWithDetails;
+}
+```
+
+**Example Request:**
 ```http
-GET /api/v1/professionals/uuid
+GET /api/v1/professionals/550e8400-e29b-41d4-a716-446655440050
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440050",
     "name": "João Silva",
     "email": "joao@email.com",
-    "generalSeniorityId": "uuid",
+    "generalSeniorityId": "550e8400-e29b-41d4-a716-446655440040",
     "generalSeniority": {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440040",
       "name": "B2",
       "level": 4
     },
     "stackExperiences": [
       {
-        "stackId": "uuid",
+        "stackId": "550e8400-e29b-41d4-a716-446655440030",
         "stackName": "React",
         "categoryName": "Frontend",
         "yearsExperience": 5
@@ -779,12 +1601,13 @@ Authorization: Bearer <token>
     ],
     "status": "allocated",
     "workMode": "both",
-    "leaderId": "uuid",
+    "leaderId": "550e8400-e29b-41d4-a716-446655440051",
+    "totalAllocationPercentage": 100,
     "createdAt": "2024-01-10T08:00:00Z",
     "allocations": [
       {
-        "id": "uuid",
-        "positionId": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440060",
+        "positionId": "550e8400-e29b-41d4-a716-446655440020",
         "positionTitle": "Senior Developer",
         "clientName": "TechCorp Brasil",
         "projectName": "Sistema de Gestão",
@@ -796,8 +1619,8 @@ Authorization: Bearer <token>
     ],
     "factoryAllocations": [
       {
-        "id": "uuid",
-        "projectId": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440070",
+        "projectId": "550e8400-e29b-41d4-a716-446655440080",
         "projectName": "App Mobile",
         "role": "dev",
         "stackName": "React Native",
@@ -814,7 +1637,29 @@ Authorization: Bearer <token>
 
 ### POST /professionals
 
-**Request:**
+Create a new professional.
+
+**Request Schema:**
+```typescript
+interface CreateProfessionalRequest {
+  name: string;                  // Required
+  email?: string;                // Optional
+  generalSeniorityId?: string;   // Optional, UUID
+  stackExperiences: StackExperience[]; // Required, min 1
+  workMode: ProfessionalWorkMode; // Required
+  leaderId?: string;             // Optional, UUID
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateProfessionalResponse {
+  success: true;
+  data: Professional;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/professionals
 Authorization: Bearer <token>
@@ -823,32 +1668,32 @@ Content-Type: application/json
 {
   "name": "Carlos Souza",
   "email": "carlos@email.com",
-  "generalSeniorityId": "uuid",
+  "generalSeniorityId": "550e8400-e29b-41d4-a716-446655440040",
   "stackExperiences": [
-    { "stackId": "uuid", "yearsExperience": 3 },
-    { "stackId": "uuid", "yearsExperience": 2 }
+    { "stackId": "550e8400-e29b-41d4-a716-446655440030", "yearsExperience": 3 },
+    { "stackId": "550e8400-e29b-41d4-a716-446655440031", "yearsExperience": 2 }
   ],
   "workMode": "both",
-  "leaderId": "uuid"
+  "leaderId": "550e8400-e29b-41d4-a716-446655440051"
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440052",
     "name": "Carlos Souza",
     "email": "carlos@email.com",
-    "generalSeniorityId": "uuid",
+    "generalSeniorityId": "550e8400-e29b-41d4-a716-446655440040",
     "stackExperiences": [
-      { "stackId": "uuid", "yearsExperience": 3 },
-      { "stackId": "uuid", "yearsExperience": 2 }
+      { "stackId": "550e8400-e29b-41d4-a716-446655440030", "yearsExperience": 3 },
+      { "stackId": "550e8400-e29b-41d4-a716-446655440031", "yearsExperience": 2 }
     ],
     "status": "idle",
     "workMode": "both",
-    "leaderId": "uuid",
+    "leaderId": "550e8400-e29b-41d4-a716-446655440051",
     "createdAt": "2024-03-15T09:00:00Z"
   }
 }
@@ -858,35 +1703,57 @@ Content-Type: application/json
 
 ### PUT /professionals/:id
 
-**Request:**
+Update an existing professional.
+
+**Request Schema:**
+```typescript
+interface UpdateProfessionalRequest {
+  name?: string;
+  email?: string | null;
+  generalSeniorityId?: string | null;
+  stackExperiences?: StackExperience[];
+  workMode?: ProfessionalWorkMode;
+  leaderId?: string | null;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateProfessionalResponse {
+  success: true;
+  data: Professional;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/professionals/uuid
+PUT /api/v1/professionals/550e8400-e29b-41d4-a716-446655440052
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "name": "Carlos Souza Jr.",
   "email": "carlos.jr@email.com",
-  "generalSeniorityId": "uuid",
+  "generalSeniorityId": "550e8400-e29b-41d4-a716-446655440041",
   "stackExperiences": [
-    { "stackId": "uuid", "yearsExperience": 4 }
+    { "stackId": "550e8400-e29b-41d4-a716-446655440030", "yearsExperience": 4 }
   ],
   "workMode": "allocation",
   "leaderId": null
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440052",
     "name": "Carlos Souza Jr.",
     "email": "carlos.jr@email.com",
-    "generalSeniorityId": "uuid",
+    "generalSeniorityId": "550e8400-e29b-41d4-a716-446655440041",
     "stackExperiences": [
-      { "stackId": "uuid", "yearsExperience": 4 }
+      { "stackId": "550e8400-e29b-41d4-a716-446655440030", "yearsExperience": 4 }
     ],
     "status": "idle",
     "workMode": "allocation",
@@ -900,13 +1767,30 @@ Content-Type: application/json
 
 ### DELETE /professionals/:id
 
-**Request:**
+Delete a professional.
+
+**Request Schema:**
+```typescript
+interface DeleteProfessionalRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteProfessionalResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/professionals/uuid
+DELETE /api/v1/professionals/550e8400-e29b-41d4-a716-446655440052
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -920,26 +1804,43 @@ Authorization: Bearer <token>
 
 ### GET /stackCategories
 
-**Request:**
+List all stack categories.
+
+**Request Schema:**
+```typescript
+interface GetStackCategoriesRequest {
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetStackCategoriesResponse {
+  success: true;
+  data: StackCategoryWithCount[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/stackCategories
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440100",
       "name": "Desenvolvimento",
       "description": "Stacks de desenvolvimento de software",
       "createdAt": "2024-01-01T00:00:00Z",
       "stackCount": 15
     },
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440101",
       "name": "QA",
       "description": "Ferramentas de qualidade",
       "createdAt": "2024-01-01T00:00:00Z",
@@ -953,7 +1854,25 @@ Authorization: Bearer <token>
 
 ### POST /stackCategories
 
-**Request:**
+Create a new stack category.
+
+**Request Schema:**
+```typescript
+interface CreateStackCategoryRequest {
+  name: string;         // Required, unique
+  description?: string; // Optional
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateStackCategoryResponse {
+  success: true;
+  data: StackCategory;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/stackCategories
 Authorization: Bearer <token>
@@ -965,12 +1884,12 @@ Content-Type: application/json
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440102",
     "name": "DevOps",
     "description": "Infraestrutura e automação",
     "createdAt": "2024-03-15T09:00:00Z"
@@ -982,9 +1901,27 @@ Content-Type: application/json
 
 ### PUT /stackCategories/:id
 
-**Request:**
+Update a stack category.
+
+**Request Schema:**
+```typescript
+interface UpdateStackCategoryRequest {
+  name?: string;
+  description?: string | null;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateStackCategoryResponse {
+  success: true;
+  data: StackCategory;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/stackCategories/uuid
+PUT /api/v1/stackCategories/550e8400-e29b-41d4-a716-446655440102
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -994,12 +1931,12 @@ Content-Type: application/json
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440102",
     "name": "DevOps & Cloud",
     "description": "Infraestrutura, automação e cloud",
     "createdAt": "2024-03-15T09:00:00Z"
@@ -1011,13 +1948,38 @@ Content-Type: application/json
 
 ### DELETE /stackCategories/:id
 
-**Request:**
+Delete a stack category.
+
+**Request Schema:**
+```typescript
+interface DeleteStackCategoryRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteStackCategoryResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/stackCategories/uuid
+DELETE /api/v1/stackCategories/550e8400-e29b-41d4-a716-446655440102
 Authorization: Bearer <token>
 ```
 
-**Response (409 - has stacks):**
+**Example Response (200):**
+```json
+{
+  "success": true,
+  "data": { "message": "Stack category deleted successfully" }
+}
+```
+
+**Example Response (409 - has stacks):**
 ```json
 {
   "success": false,
@@ -1035,6 +1997,8 @@ Authorization: Bearer <token>
 
 ### GET /stacks
 
+List all stacks.
+
 **Query Parameters:**
 
 | Param | Type | Default | Description |
@@ -1042,21 +2006,37 @@ Authorization: Bearer <token>
 | categoryId | uuid | - | Filter by category |
 | search | string | - | Search by name |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetStacksRequest {
+  categoryId?: string;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetStacksResponse {
+  success: true;
+  data: StackWithDetails[];
+}
+```
+
+**Example Request:**
 ```http
-GET /api/v1/stacks?categoryId=uuid
+GET /api/v1/stacks?categoryId=550e8400-e29b-41d4-a716-446655440100
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440030",
       "name": "React",
-      "categoryId": "uuid",
+      "categoryId": "550e8400-e29b-41d4-a716-446655440100",
       "categoryName": "Frontend",
       "createdAt": "2024-01-01T00:00:00Z",
       "professionalCount": 25,
@@ -1071,7 +2051,25 @@ Authorization: Bearer <token>
 
 ### POST /stacks
 
-**Request:**
+Create a new stack.
+
+**Request Schema:**
+```typescript
+interface CreateStackRequest {
+  name: string;      // Required
+  categoryId: string; // Required, UUID
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateStackResponse {
+  success: true;
+  data: Stack;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/stacks
 Authorization: Bearer <token>
@@ -1079,18 +2077,18 @@ Content-Type: application/json
 
 {
   "name": "Vue.js",
-  "categoryId": "uuid"
+  "categoryId": "550e8400-e29b-41d4-a716-446655440100"
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440032",
     "name": "Vue.js",
-    "categoryId": "uuid",
+    "categoryId": "550e8400-e29b-41d4-a716-446655440100",
     "createdAt": "2024-03-15T09:00:00Z"
   }
 }
@@ -1100,26 +2098,44 @@ Content-Type: application/json
 
 ### PUT /stacks/:id
 
-**Request:**
+Update a stack.
+
+**Request Schema:**
+```typescript
+interface UpdateStackRequest {
+  name?: string;
+  categoryId?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateStackResponse {
+  success: true;
+  data: Stack;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/stacks/uuid
+PUT /api/v1/stacks/550e8400-e29b-41d4-a716-446655440032
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "name": "Vue.js 3",
-  "categoryId": "uuid"
+  "categoryId": "550e8400-e29b-41d4-a716-446655440100"
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440032",
     "name": "Vue.js 3",
-    "categoryId": "uuid",
+    "categoryId": "550e8400-e29b-41d4-a716-446655440100",
     "createdAt": "2024-03-15T09:00:00Z"
   }
 }
@@ -1129,13 +2145,30 @@ Content-Type: application/json
 
 ### DELETE /stacks/:id
 
-**Request:**
+Delete a stack.
+
+**Request Schema:**
+```typescript
+interface DeleteStackRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteStackResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/stacks/uuid
+DELETE /api/v1/stacks/550e8400-e29b-41d4-a716-446655440032
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1151,33 +2184,48 @@ Authorization: Bearer <token>
 
 Returns ordered list by level.
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetGeneralSenioritiesRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetGeneralSenioritiesResponse {
+  success: true;
+  data: GeneralSeniority[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/generalSeniorities
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440040",
       "name": "A1",
       "level": 1,
       "description": "Estagiário",
       "createdAt": "2024-01-01T00:00:00Z"
     },
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440041",
       "name": "A2",
       "level": 2,
       "description": "Junior 1",
       "createdAt": "2024-01-01T00:00:00Z"
     },
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440042",
       "name": "B1",
       "level": 3,
       "description": "Pleno 1",
@@ -1191,7 +2239,26 @@ Authorization: Bearer <token>
 
 ### POST /generalSeniorities
 
-**Request:**
+Create a new general seniority.
+
+**Request Schema:**
+```typescript
+interface CreateGeneralSeniorityRequest {
+  name: string;        // Required, unique
+  level: number;       // Required, unique
+  description?: string; // Optional
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateGeneralSeniorityResponse {
+  success: true;
+  data: GeneralSeniority;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/generalSeniorities
 Authorization: Bearer <token>
@@ -1204,12 +2271,12 @@ Content-Type: application/json
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440049",
     "name": "C5",
     "level": 10,
     "description": "Principal Engineer",
@@ -1222,9 +2289,28 @@ Content-Type: application/json
 
 ### PUT /generalSeniorities/:id
 
-**Request:**
+Update a general seniority.
+
+**Request Schema:**
+```typescript
+interface UpdateGeneralSeniorityRequest {
+  name?: string;
+  level?: number;
+  description?: string | null;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateGeneralSeniorityResponse {
+  success: true;
+  data: GeneralSeniority;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/generalSeniorities/uuid
+PUT /api/v1/generalSeniorities/550e8400-e29b-41d4-a716-446655440049
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1235,12 +2321,12 @@ Content-Type: application/json
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440049",
     "name": "C5",
     "level": 10,
     "description": "Distinguished Engineer",
@@ -1255,7 +2341,25 @@ Content-Type: application/json
 
 Bulk update levels for drag-and-drop reordering.
 
-**Request:**
+**Request Schema:**
+```typescript
+interface ReorderGeneralSenioritiesRequest {
+  items: Array<{
+    id: string;
+    level: number;
+  }>;
+}
+```
+
+**Response Schema:**
+```typescript
+interface ReorderGeneralSenioritiesResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
 PUT /api/v1/generalSeniorities/reorder
 Authorization: Bearer <token>
@@ -1263,14 +2367,14 @@ Content-Type: application/json
 
 {
   "items": [
-    { "id": "uuid", "level": 1 },
-    { "id": "uuid", "level": 2 },
-    { "id": "uuid", "level": 3 }
+    { "id": "550e8400-e29b-41d4-a716-446655440040", "level": 1 },
+    { "id": "550e8400-e29b-41d4-a716-446655440041", "level": 2 },
+    { "id": "550e8400-e29b-41d4-a716-446655440042", "level": 3 }
   ]
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1282,13 +2386,30 @@ Content-Type: application/json
 
 ### DELETE /generalSeniorities/:id
 
-**Request:**
+Delete a general seniority.
+
+**Request Schema:**
+```typescript
+interface DeleteGeneralSeniorityRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteGeneralSeniorityResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/generalSeniorities/uuid
+DELETE /api/v1/generalSeniorities/550e8400-e29b-41d4-a716-446655440049
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1312,19 +2433,36 @@ Returns contracts with team composition (members allocated).
 | status | string | - | Contract status filter |
 | search | string | - | Search by projectName, clientName, professionalName |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetTeamsRequest {
+  type?: ContractType;
+  status?: ContractStatus;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetTeamsResponse {
+  success: true;
+  data: TeamView[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/teams?type=staffing
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "contractId": "uuid",
+      "contractId": "550e8400-e29b-41d4-a716-446655440010",
       "contractNumber": "CTR-2024-001",
       "projectName": "Sistema de Gestão",
       "clientName": "TechCorp Brasil",
@@ -1337,7 +2475,7 @@ Authorization: Bearer <token>
       "filledPositions": 4,
       "members": [
         {
-          "professionalId": "uuid",
+          "professionalId": "550e8400-e29b-41d4-a716-446655440050",
           "professionalName": "João Silva",
           "positionTitle": "Senior Developer",
           "stackName": "React",
@@ -1358,6 +2496,8 @@ Authorization: Bearer <token>
 
 ### GET /factoryProjects
 
+List all factory projects.
+
 **Query Parameters:**
 
 | Param | Type | Default | Description |
@@ -1365,23 +2505,39 @@ Authorization: Bearer <token>
 | status | string | - | "planned", "inProgress", "finished", "paused" |
 | search | string | - | Search by name, description, clientName |
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetFactoryProjectsRequest {
+  status?: FactoryProjectStatus;
+  search?: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetFactoryProjectsResponse {
+  success: true;
+  data: FactoryProjectWithDetails[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/factoryProjects?status=inProgress
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440080",
       "name": "App Mobile Banking",
-      "clientId": "uuid",
+      "clientId": "550e8400-e29b-41d4-a716-446655440001",
       "client": {
-        "id": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440001",
         "name": "Banco XYZ"
       },
       "description": "Aplicativo mobile para transações bancárias",
@@ -1397,15 +2553,17 @@ Authorization: Bearer <token>
       "calculatedProgress": 33,
       "allocations": [
         {
-          "id": "uuid",
-          "professionalId": "uuid",
+          "id": "550e8400-e29b-41d4-a716-446655440070",
+          "projectId": "550e8400-e29b-41d4-a716-446655440080",
+          "professionalId": "550e8400-e29b-41d4-a716-446655440050",
           "professionalName": "Carlos Dev",
           "role": "dev",
-          "stackId": "uuid",
+          "stackId": "550e8400-e29b-41d4-a716-446655440033",
           "stackName": "React Native",
           "startDate": "2024-02-01",
           "endDate": "2024-08-31",
-          "allocationPercentage": 100
+          "allocationPercentage": 100,
+          "createdAt": "2024-01-20T10:00:00Z"
         }
       ]
     }
@@ -1417,22 +2575,39 @@ Authorization: Bearer <token>
 
 ### GET /factoryProjects/:id
 
-**Request:**
+Get a single factory project with full details.
+
+**Request Schema:**
+```typescript
+interface GetFactoryProjectByIdRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetFactoryProjectByIdResponse {
+  success: true;
+  data: FactoryProjectWithDetails;
+}
+```
+
+**Example Request:**
 ```http
-GET /api/v1/factoryProjects/uuid
+GET /api/v1/factoryProjects/550e8400-e29b-41d4-a716-446655440080
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440080",
     "name": "App Mobile Banking",
-    "clientId": "uuid",
+    "clientId": "550e8400-e29b-41d4-a716-446655440001",
     "client": {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "name": "Banco XYZ"
     },
     "description": "Aplicativo mobile para transações bancárias",
@@ -1441,21 +2616,28 @@ Authorization: Bearer <token>
     "status": "inProgress",
     "progressPercentage": 45,
     "createdAt": "2024-01-20T10:00:00Z",
+    "totalMembers": 6,
+    "daysRemaining": 120,
+    "daysElapsed": 60,
+    "totalDays": 180,
+    "calculatedProgress": 33,
     "allocations": [
       {
-        "id": "uuid",
-        "professionalId": "uuid",
+        "id": "550e8400-e29b-41d4-a716-446655440070",
+        "projectId": "550e8400-e29b-41d4-a716-446655440080",
+        "professionalId": "550e8400-e29b-41d4-a716-446655440050",
         "professional": {
-          "id": "uuid",
+          "id": "550e8400-e29b-41d4-a716-446655440050",
           "name": "Carlos Dev",
-          "generalSeniority": { "id": "uuid", "name": "B2" }
+          "generalSeniority": { "id": "550e8400-e29b-41d4-a716-446655440040", "name": "B2" }
         },
         "role": "dev",
-        "stackId": "uuid",
-        "stack": { "id": "uuid", "name": "React Native" },
+        "stackId": "550e8400-e29b-41d4-a716-446655440033",
+        "stack": { "id": "550e8400-e29b-41d4-a716-446655440033", "name": "React Native" },
         "startDate": "2024-02-01",
         "endDate": "2024-08-31",
-        "allocationPercentage": 100
+        "allocationPercentage": 100,
+        "createdAt": "2024-01-20T10:00:00Z"
       }
     ]
   }
@@ -1466,7 +2648,30 @@ Authorization: Bearer <token>
 
 ### POST /factoryProjects
 
-**Request:**
+Create a new factory project.
+
+**Request Schema:**
+```typescript
+interface CreateFactoryProjectRequest {
+  name: string;                  // Required
+  clientId?: string;             // Optional, UUID
+  description: string;           // Required
+  startDate: string;             // Required, ISO 8601 date
+  endDate: string;               // Required, ISO 8601 date
+  status: FactoryProjectStatus;  // Required
+  progressPercentage?: number;   // Optional, default 0
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateFactoryProjectResponse {
+  success: true;
+  data: FactoryProject;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/factoryProjects
 Authorization: Bearer <token>
@@ -1474,7 +2679,7 @@ Content-Type: application/json
 
 {
   "name": "Sistema ERP",
-  "clientId": "uuid",
+  "clientId": "550e8400-e29b-41d4-a716-446655440001",
   "description": "Sistema de gestão empresarial",
   "startDate": "2024-04-01",
   "endDate": "2024-12-31",
@@ -1483,14 +2688,14 @@ Content-Type: application/json
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440081",
     "name": "Sistema ERP",
-    "clientId": "uuid",
+    "clientId": "550e8400-e29b-41d4-a716-446655440001",
     "description": "Sistema de gestão empresarial",
     "startDate": "2024-04-01",
     "endDate": "2024-12-31",
@@ -1505,9 +2710,32 @@ Content-Type: application/json
 
 ### PUT /factoryProjects/:id
 
-**Request:**
+Update a factory project.
+
+**Request Schema:**
+```typescript
+interface UpdateFactoryProjectRequest {
+  name?: string;
+  clientId?: string | null;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: FactoryProjectStatus;
+  progressPercentage?: number;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateFactoryProjectResponse {
+  success: true;
+  data: FactoryProject;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/factoryProjects/uuid
+PUT /api/v1/factoryProjects/550e8400-e29b-41d4-a716-446655440081
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1518,14 +2746,14 @@ Content-Type: application/json
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440081",
     "name": "Sistema ERP v2",
-    "clientId": "uuid",
+    "clientId": "550e8400-e29b-41d4-a716-446655440001",
     "description": "Sistema de gestão empresarial",
     "startDate": "2024-04-01",
     "endDate": "2024-12-31",
@@ -1540,13 +2768,30 @@ Content-Type: application/json
 
 ### DELETE /factoryProjects/:id
 
-**Request:**
+Delete a factory project and all associated allocations.
+
+**Request Schema:**
+```typescript
+interface DeleteFactoryProjectRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteFactoryProjectResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/factoryProjects/uuid
+DELETE /api/v1/factoryProjects/550e8400-e29b-41d4-a716-446655440081
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1560,33 +2805,56 @@ Authorization: Bearer <token>
 
 ### POST /factoryAllocations
 
-**Request:**
+Create a factory allocation.
+
+**Request Schema:**
+```typescript
+interface CreateFactoryAllocationRequest {
+  projectId: string;             // Required, UUID
+  professionalId: string;        // Required, UUID
+  role: FactoryRole;             // Required
+  stackId: string;               // Required, UUID
+  startDate: string;             // Required, ISO 8601 date
+  endDate: string;               // Required, ISO 8601 date
+  allocationPercentage: number;  // Required, 1-100
+}
+```
+
+**Response Schema:**
+```typescript
+interface CreateFactoryAllocationResponse {
+  success: true;
+  data: FactoryAllocation;
+}
+```
+
+**Example Request:**
 ```http
 POST /api/v1/factoryAllocations
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "projectId": "uuid",
-  "professionalId": "uuid",
+  "projectId": "550e8400-e29b-41d4-a716-446655440080",
+  "professionalId": "550e8400-e29b-41d4-a716-446655440050",
   "role": "dev",
-  "stackId": "uuid",
+  "stackId": "550e8400-e29b-41d4-a716-446655440033",
   "startDate": "2024-04-01",
   "endDate": "2024-12-31",
   "allocationPercentage": 100
 }
 ```
 
-**Response (201):**
+**Example Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "projectId": "uuid",
-    "professionalId": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440071",
+    "projectId": "550e8400-e29b-41d4-a716-446655440080",
+    "professionalId": "550e8400-e29b-41d4-a716-446655440050",
     "role": "dev",
-    "stackId": "uuid",
+    "stackId": "550e8400-e29b-41d4-a716-446655440033",
     "startDate": "2024-04-01",
     "endDate": "2024-12-31",
     "allocationPercentage": 100,
@@ -1599,9 +2867,30 @@ Content-Type: application/json
 
 ### PUT /factoryAllocations/:id
 
-**Request:**
+Update a factory allocation.
+
+**Request Schema:**
+```typescript
+interface UpdateFactoryAllocationRequest {
+  role?: FactoryRole;
+  stackId?: string;
+  startDate?: string;
+  endDate?: string;
+  allocationPercentage?: number;
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateFactoryAllocationResponse {
+  success: true;
+  data: FactoryAllocation;
+}
+```
+
+**Example Request:**
 ```http
-PUT /api/v1/factoryAllocations/uuid
+PUT /api/v1/factoryAllocations/550e8400-e29b-41d4-a716-446655440071
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1612,16 +2901,16 @@ Content-Type: application/json
 }
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "projectId": "uuid",
-    "professionalId": "uuid",
+    "id": "550e8400-e29b-41d4-a716-446655440071",
+    "projectId": "550e8400-e29b-41d4-a716-446655440080",
+    "professionalId": "550e8400-e29b-41d4-a716-446655440050",
     "role": "techLead",
-    "stackId": "uuid",
+    "stackId": "550e8400-e29b-41d4-a716-446655440033",
     "startDate": "2024-04-01",
     "endDate": "2024-10-31",
     "allocationPercentage": 50,
@@ -1634,13 +2923,30 @@ Content-Type: application/json
 
 ### DELETE /factoryAllocations/:id
 
-**Request:**
+Delete a factory allocation.
+
+**Request Schema:**
+```typescript
+interface DeleteFactoryAllocationRequest {
+  id: string; // UUID path parameter
+}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteFactoryAllocationResponse {
+  success: true;
+  data: { message: string };
+}
+```
+
+**Example Request:**
 ```http
-DELETE /api/v1/factoryAllocations/uuid
+DELETE /api/v1/factoryAllocations/550e8400-e29b-41d4-a716-446655440071
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1654,13 +2960,30 @@ Authorization: Bearer <token>
 
 ### GET /dashboard/metrics
 
-**Request:**
+Get staffing dashboard metrics.
+
+**Request Schema:**
+```typescript
+interface GetDashboardMetricsRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetDashboardMetricsResponse {
+  success: true;
+  data: DashboardMetrics;
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/dashboard/metrics
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1682,13 +3005,30 @@ Authorization: Bearer <token>
 
 ### GET /dashboard/occupancyForecast
 
-**Request:**
+Get occupancy forecast for 30, 60, and 90 days.
+
+**Request Schema:**
+```typescript
+interface GetOccupancyForecastRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetOccupancyForecastResponse {
+  success: true;
+  data: OccupancyForecast[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/dashboard/occupancyForecast
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1700,7 +3040,7 @@ Authorization: Bearer <token>
       "occupancyRate": 85.5,
       "predictedIdleProfessionals": [
         {
-          "professionalId": "uuid",
+          "professionalId": "550e8400-e29b-41d4-a716-446655440050",
           "professionalName": "João Silva",
           "stackName": "React",
           "currentClientName": "TechCorp",
@@ -1732,20 +3072,37 @@ Authorization: Bearer <token>
 
 ### GET /dashboard/allocationTimeline
 
-**Request:**
+Get allocation timeline for Gantt chart.
+
+**Request Schema:**
+```typescript
+interface GetAllocationTimelineRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetAllocationTimelineResponse {
+  success: true;
+  data: AllocationTimelineEntry[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/dashboard/allocationTimeline
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
-      "professionalId": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440060",
+      "professionalId": "550e8400-e29b-41d4-a716-446655440050",
       "professionalName": "João Silva",
       "positionTitle": "Senior Developer",
       "stackName": "React",
@@ -1765,21 +3122,38 @@ Authorization: Bearer <token>
 
 ### GET /dashboard/stackDistribution
 
-**Request:**
+Get stack distribution metrics.
+
+**Request Schema:**
+```typescript
+interface GetStackDistributionRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetStackDistributionResponse {
+  success: true;
+  data: StackDistribution[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/dashboard/stackDistribution
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "stackId": "uuid",
+      "stackId": "550e8400-e29b-41d4-a716-446655440030",
       "stackName": "React",
-      "categoryId": "uuid",
+      "categoryId": "550e8400-e29b-41d4-a716-446655440100",
       "categoryName": "Frontend",
       "professionalCount": 25,
       "positionCount": 20,
@@ -1795,13 +3169,30 @@ Authorization: Bearer <token>
 
 ### GET /factory/metrics
 
-**Request:**
+Get factory dashboard metrics.
+
+**Request Schema:**
+```typescript
+interface GetFactoryMetricsRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetFactoryMetricsResponse {
+  success: true;
+  data: FactoryMetrics;
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/factory/metrics
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1824,13 +3215,30 @@ Authorization: Bearer <token>
 
 ### GET /factory/idleForecasts
 
-**Request:**
+Get factory idle forecasts for 30, 60, and 90 days.
+
+**Request Schema:**
+```typescript
+interface GetFactoryIdleForecastsRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetFactoryIdleForecastsResponse {
+  success: true;
+  data: FactoryIdleForecast[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/factory/idleForecasts
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
@@ -1842,7 +3250,7 @@ Authorization: Bearer <token>
       "occupancyRate": 80.0,
       "idleProfessionals": [
         {
-          "professionalId": "uuid",
+          "professionalId": "550e8400-e29b-41d4-a716-446655440050",
           "professionalName": "Carlos Dev",
           "stackName": "React Native",
           "currentProjectName": "App Mobile",
@@ -1859,21 +3267,36 @@ Authorization: Bearer <token>
 
 ### GET /factory/gantt
 
-Gantt chart data for factory projects and professionals.
+Get Gantt chart data for factory projects and professionals.
 
-**Request:**
+**Request Schema:**
+```typescript
+interface GetFactoryGanttRequest {
+  // No parameters
+}
+```
+
+**Response Schema:**
+```typescript
+interface GetFactoryGanttResponse {
+  success: true;
+  data: FactoryGanttEntry[];
+}
+```
+
+**Example Request:**
 ```http
 GET /api/v1/factory/gantt
 Authorization: Bearer <token>
 ```
 
-**Response (200):**
+**Example Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440080",
       "type": "project",
       "name": "App Mobile Banking",
       "startDate": "2024-02-01",
@@ -1882,10 +3305,10 @@ Authorization: Bearer <token>
       "status": "inProgress"
     },
     {
-      "id": "uuid",
+      "id": "550e8400-e29b-41d4-a716-446655440070",
       "type": "professional",
       "name": "Carlos Dev",
-      "projectId": "uuid",
+      "projectId": "550e8400-e29b-41d4-a716-446655440080",
       "projectName": "App Mobile Banking",
       "role": "dev",
       "stackName": "React Native",
@@ -1898,9 +3321,9 @@ Authorization: Bearer <token>
 
 ---
 
-## Business Rules
+# Business Rules
 
-### Professional Status Derivation
+## Professional Status Derivation
 
 The professional status is **computed** based on active allocations:
 
@@ -1931,13 +3354,13 @@ function deriveProfessionalStatus(
 }
 ```
 
-### Position Status Sync
+## Position Status Sync
 
 When an allocation is created/deleted, the position status should be updated:
 - Create allocation → position.status = "filled"
 - Delete allocation → position.status = "open"
 
-### Contract Status Computation
+## Contract Status Computation
 
 ```typescript
 function getContractStatus(endDate: string): ContractStatus {
@@ -1951,7 +3374,7 @@ function getContractStatus(endDate: string): ContractStatus {
 }
 ```
 
-### Allocation Conflict Validation
+## Allocation Conflict Validation
 
 Before creating an allocation, validate that the professional's total allocation doesn't exceed 100%:
 
@@ -1979,7 +3402,7 @@ function validateAllocation(
 
 ---
 
-## Error Codes
+# Error Codes
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
