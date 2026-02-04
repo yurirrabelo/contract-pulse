@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides the complete API specification for the Talent Allocation Hub backend, including all endpoints, request/response schemas, and field mappings.
+Complete API specification for the Talent Allocation Hub backend, with all fields in **camelCase** format.
 
 ---
 
@@ -44,7 +44,7 @@ Authorization: Bearer <token>
   "meta": {
     "total": 100,
     "page": 1,
-    "per_page": 20
+    "perPage": 20
   }
 }
 ```
@@ -57,77 +57,91 @@ Authorization: Bearer <token>
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Invalid request body",
-    "details": {
-      "field": "email",
-      "reason": "Invalid email format"
-    }
+    "details": [
+      { "field": "email", "reason": "Invalid email format" }
+    ]
   }
 }
 ```
 
 ---
 
-## 1. Clients
+## Enums
 
-**Table:** `clients`
+### ContractType
+```typescript
+type ContractType = "staffing" | "fabrica";
+```
 
-### Schema
+### ContractStatus (computed)
+```typescript
+type ContractStatus = "active" | "expiring30" | "expiring60" | "expiring90" | "expired";
+```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Company name |
-| `cnpj` | string | yes | Brazilian tax ID |
-| `contact` | string | yes | Contact info |
-| `created_at` | timestamp | auto | Creation date |
+### PositionStatus
+```typescript
+type PositionStatus = "open" | "filled";
+```
+
+### ProfessionalStatus (computed from allocations)
+```typescript
+type ProfessionalStatus = "allocated" | "idle" | "partial" | "vacation" | "notice";
+```
+
+### ProfessionalWorkMode
+```typescript
+type ProfessionalWorkMode = "allocation" | "factory" | "both";
+```
+
+### FactoryProjectStatus
+```typescript
+type FactoryProjectStatus = "planned" | "inProgress" | "finished" | "paused";
+```
+
+### FactoryRole
+```typescript
+type FactoryRole = "dev" | "qa" | "po" | "pm" | "techLead" | "architect" | "scrumMaster" | "ux" | "other";
+```
 
 ---
 
+## 1. Clients
+
 ### GET /clients
 
-List all clients.
+List all clients with summary data.
 
 **Query Parameters:**
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `page` | integer | 1 | Page number |
-| `per_page` | integer | 20 | Items per page |
-| `search` | string | - | Search by name or CNPJ |
+| page | integer | 1 | Page number |
+| perPage | integer | 20 | Items per page |
+| search | string | - | Search by name or CNPJ |
 
 **Request:**
-
 ```http
-GET /api/v1/clients?page=1&per_page=20&search=tech
+GET /api/v1/clients?page=1&perPage=20&search=tech
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "id": "uuid",
       "name": "TechCorp Brasil",
       "cnpj": "12.345.678/0001-90",
       "contact": "contato@techcorp.com.br",
-      "created_at": "2024-01-15T10:30:00Z"
-    },
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440002",
-      "name": "Inovação Tech Ltda",
-      "cnpj": "98.765.432/0001-10",
-      "contact": "(11) 99999-8888",
-      "created_at": "2024-02-20T14:45:00Z"
+      "createdAt": "2024-01-15T10:30:00Z",
+      "activeContracts": 3,
+      "totalPositions": 10,
+      "filledPositions": 8
     }
   ],
-  "meta": {
-    "total": 45,
-    "page": 1,
-    "per_page": 20
-  }
+  "meta": { "total": 45, "page": 1, "perPage": 20 }
 }
 ```
 
@@ -135,38 +149,22 @@ Authorization: Bearer <token>
 
 ### GET /clients/:id
 
-Get client by ID.
-
 **Request:**
-
 ```http
 GET /api/v1/clients/550e8400-e29b-41d4-a716-446655440001
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "id": "uuid",
     "name": "TechCorp Brasil",
     "cnpj": "12.345.678/0001-90",
     "contact": "contato@techcorp.com.br",
-    "created_at": "2024-01-15T10:30:00Z"
-  }
-}
-```
-
-**Response (404 Not Found):**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Client not found"
+    "createdAt": "2024-01-15T10:30:00Z"
   }
 }
 ```
@@ -175,10 +173,7 @@ Authorization: Bearer <token>
 
 ### POST /clients
 
-Create a new client.
-
 **Request:**
-
 ```http
 POST /api/v1/clients
 Authorization: Bearer <token>
@@ -191,33 +186,16 @@ Content-Type: application/json
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440003",
+    "id": "uuid",
     "name": "Nova Empresa S.A.",
     "cnpj": "11.222.333/0001-44",
     "contact": "comercial@novaempresa.com.br",
-    "created_at": "2024-03-10T09:00:00Z"
-  }
-}
-```
-
-**Response (422 Validation Error):**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Validation failed",
-    "details": [
-      { "field": "cnpj", "reason": "CNPJ already exists" },
-      { "field": "name", "reason": "Name is required" }
-    ]
+    "createdAt": "2024-03-10T09:00:00Z"
   }
 }
 ```
@@ -226,12 +204,9 @@ Content-Type: application/json
 
 ### PUT /clients/:id
 
-Update a client.
-
 **Request:**
-
 ```http
-PUT /api/v1/clients/550e8400-e29b-41d4-a716-446655440001
+PUT /api/v1/clients/uuid
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -241,17 +216,16 @@ Content-Type: application/json
 }
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "id": "uuid",
     "name": "TechCorp Brasil Atualizado",
     "cnpj": "12.345.678/0001-90",
     "contact": "novo-contato@techcorp.com.br",
-    "created_at": "2024-01-15T10:30:00Z"
+    "createdAt": "2024-01-15T10:30:00Z"
   }
 }
 ```
@@ -260,37 +234,28 @@ Content-Type: application/json
 
 ### DELETE /clients/:id
 
-Delete a client.
-
 **Request:**
-
 ```http
-DELETE /api/v1/clients/550e8400-e29b-41d4-a716-446655440001
+DELETE /api/v1/clients/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "message": "Client deleted successfully"
-  }
+  "data": { "message": "Client deleted successfully" }
 }
 ```
 
-**Response (409 Conflict):**
-
+**Response (409 - has active contracts):**
 ```json
 {
   "success": false,
   "error": {
     "code": "CONFLICT",
     "message": "Cannot delete client with active contracts",
-    "details": {
-      "active_contracts": 3
-    }
+    "details": { "activeContracts": 3 }
   }
 }
 ```
@@ -299,75 +264,52 @@ Authorization: Bearer <token>
 
 ## 2. Contracts
 
-**Table:** `contracts`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `client_id` | uuid | yes | FK to clients |
-| `contract_number` | string | yes | Unique contract number |
-| `project_name` | string | no | Project name |
-| `type` | enum | yes | 'staffing' or 'factory' |
-| `start_date` | date | yes | Contract start |
-| `end_date` | date | yes | Contract end |
-| `monthly_value` | decimal | yes | Monthly revenue |
-| `created_at` | timestamp | auto | Creation date |
-
-### Enums
-
-```typescript
-type ContractType = 'staffing' | 'factory';
-type ContractStatus = 'active' | 'expiring_30' | 'expiring_60' | 'expiring_90' | 'expired';
-```
-
----
-
 ### GET /contracts
 
-List all contracts.
+List all contracts with computed status.
 
 **Query Parameters:**
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `page` | integer | 1 | Page number |
-| `per_page` | integer | 20 | Items per page |
-| `client_id` | uuid | - | Filter by client |
-| `type` | string | - | Filter by type |
-| `status` | string | - | Filter by status |
+| page | integer | 1 | Page number |
+| perPage | integer | 20 | Items per page |
+| clientId | uuid | - | Filter by client |
+| type | string | - | "staffing" or "fabrica" |
+| status | string | - | Filter by computed status |
+| search | string | - | Search by contractNumber, projectName, clientName |
 
 **Request:**
-
 ```http
 GET /api/v1/contracts?type=staffing&status=active
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "660e8400-e29b-41d4-a716-446655440001",
-      "client_id": "550e8400-e29b-41d4-a716-446655440001",
-      "contract_number": "CTR-2024-001",
-      "project_name": "Sistema de Gestão",
+      "id": "uuid",
+      "clientId": "uuid",
+      "contractNumber": "CTR-2024-001",
+      "projectName": "Sistema de Gestão",
       "type": "staffing",
-      "start_date": "2024-01-01",
-      "end_date": "2024-12-31",
-      "monthly_value": 50000.00,
-      "created_at": "2024-01-05T08:00:00Z"
+      "startDate": "2024-01-01",
+      "endDate": "2024-12-31",
+      "createdAt": "2024-01-05T08:00:00Z",
+      "status": "active",
+      "daysUntilExpiration": 180,
+      "client": {
+        "id": "uuid",
+        "name": "TechCorp Brasil"
+      },
+      "totalPositions": 5,
+      "filledPositions": 3
     }
   ],
-  "meta": {
-    "total": 25,
-    "page": 1,
-    "per_page": 20
-  }
+  "meta": { "total": 25, "page": 1, "perPage": 20 }
 }
 ```
 
@@ -375,84 +317,47 @@ Authorization: Bearer <token>
 
 ### GET /contracts/:id
 
-Get contract by ID.
-
 **Request:**
-
 ```http
-GET /api/v1/contracts/660e8400-e29b-41d4-a716-446655440001
+GET /api/v1/contracts/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "660e8400-e29b-41d4-a716-446655440001",
-    "client_id": "550e8400-e29b-41d4-a716-446655440001",
-    "contract_number": "CTR-2024-001",
-    "project_name": "Sistema de Gestão",
+    "id": "uuid",
+    "clientId": "uuid",
+    "contractNumber": "CTR-2024-001",
+    "projectName": "Sistema de Gestão",
     "type": "staffing",
-    "start_date": "2024-01-01",
-    "end_date": "2024-12-31",
-    "monthly_value": 50000.00,
-    "created_at": "2024-01-05T08:00:00Z"
-  }
-}
-```
-
----
-
-### GET /contracts/:id/details
-
-Get contract with full details (client, positions, status).
-
-**Request:**
-
-```http
-GET /api/v1/contracts/660e8400-e29b-41d4-a716-446655440001/details
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "660e8400-e29b-41d4-a716-446655440001",
-    "client_id": "550e8400-e29b-41d4-a716-446655440001",
-    "contract_number": "CTR-2024-001",
-    "project_name": "Sistema de Gestão",
-    "type": "staffing",
-    "start_date": "2024-01-01",
-    "end_date": "2024-12-31",
-    "monthly_value": 50000.00,
-    "created_at": "2024-01-05T08:00:00Z",
+    "startDate": "2024-01-01",
+    "endDate": "2024-12-31",
+    "createdAt": "2024-01-05T08:00:00Z",
     "status": "active",
-    "days_until_expiration": 180,
+    "daysUntilExpiration": 180,
     "client": {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "id": "uuid",
       "name": "TechCorp Brasil",
       "cnpj": "12.345.678/0001-90",
       "contact": "contato@techcorp.com.br"
     },
     "positions": [
       {
-        "id": "770e8400-e29b-41d4-a716-446655440001",
+        "id": "uuid",
         "title": "Desenvolvedor Full Stack Senior",
-        "stack_id": "880e8400-e29b-41d4-a716-446655440001",
+        "stackId": "uuid",
+        "stackName": "React",
         "status": "filled",
-        "allocation_percentage": 100
-      },
-      {
-        "id": "770e8400-e29b-41d4-a716-446655440002",
-        "title": "QA Analyst",
-        "stack_id": "880e8400-e29b-41d4-a716-446655440002",
-        "status": "open",
-        "allocation_percentage": 100
+        "startDate": "2024-01-01",
+        "endDate": "2024-12-31",
+        "allocationPercentage": 100,
+        "professional": {
+          "id": "uuid",
+          "name": "João Silva"
+        }
       }
     ]
   }
@@ -463,116 +368,82 @@ Authorization: Bearer <token>
 
 ### POST /contracts
 
-Create a new contract with positions.
+Create contract with positions (positions are required).
 
 **Request:**
-
 ```http
 POST /api/v1/contracts
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "client_id": "550e8400-e29b-41d4-a716-446655440001",
-  "contract_number": "CTR-2024-010",
-  "project_name": "Novo Projeto Mobile",
+  "clientId": "uuid",
+  "contractNumber": "CTR-2024-010",
+  "projectName": "Novo Projeto Mobile",
   "type": "staffing",
-  "start_date": "2024-04-01",
-  "end_date": "2025-03-31",
-  "monthly_value": 75000.00,
+  "startDate": "2024-04-01",
+  "endDate": "2025-03-31",
   "positions": [
     {
       "title": "Mobile Developer Senior",
-      "stack_id": "880e8400-e29b-41d4-a716-446655440003",
-      "seniority_id": "990e8400-e29b-41d4-a716-446655440001",
-      "allocation_percentage": 100
+      "stackId": "uuid",
+      "seniorityId": "uuid",
+      "allocationPercentage": 100
     },
     {
       "title": "UX Designer",
-      "stack_id": "880e8400-e29b-41d4-a716-446655440004",
-      "allocation_percentage": 50
+      "stackId": "uuid",
+      "allocationPercentage": 50
     }
   ]
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "660e8400-e29b-41d4-a716-446655440010",
-    "client_id": "550e8400-e29b-41d4-a716-446655440001",
-    "contract_number": "CTR-2024-010",
-    "project_name": "Novo Projeto Mobile",
+    "id": "uuid",
+    "clientId": "uuid",
+    "contractNumber": "CTR-2024-010",
+    "projectName": "Novo Projeto Mobile",
     "type": "staffing",
-    "start_date": "2024-04-01",
-    "end_date": "2025-03-31",
-    "monthly_value": 75000.00,
-    "created_at": "2024-03-15T10:00:00Z",
+    "startDate": "2024-04-01",
+    "endDate": "2025-03-31",
+    "createdAt": "2024-03-15T10:00:00Z",
     "positions": [
       {
-        "id": "770e8400-e29b-41d4-a716-446655440010",
+        "id": "uuid",
         "title": "Mobile Developer Senior",
-        "stack_id": "880e8400-e29b-41d4-a716-446655440003",
-        "seniority_id": "990e8400-e29b-41d4-a716-446655440001",
+        "stackId": "uuid",
+        "seniorityId": "uuid",
         "status": "open",
-        "start_date": "2024-04-01",
-        "end_date": "2025-03-31",
-        "allocation_percentage": 100,
-        "created_at": "2024-03-15T10:00:00Z"
+        "startDate": "2024-04-01",
+        "endDate": "2025-03-31",
+        "allocationPercentage": 100
       },
       {
-        "id": "770e8400-e29b-41d4-a716-446655440011",
+        "id": "uuid",
         "title": "UX Designer",
-        "stack_id": "880e8400-e29b-41d4-a716-446655440004",
-        "seniority_id": null,
+        "stackId": "uuid",
         "status": "open",
-        "start_date": "2024-04-01",
-        "end_date": "2025-03-31",
-        "allocation_percentage": 50,
-        "created_at": "2024-03-15T10:00:00Z"
+        "startDate": "2024-04-01",
+        "endDate": "2025-03-31",
+        "allocationPercentage": 50
       }
     ]
   }
 }
 ```
 
----
-
-### PUT /contracts/:id
-
-Update a contract.
-
-**Request:**
-
-```http
-PUT /api/v1/contracts/660e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "project_name": "Sistema de Gestão v2",
-  "monthly_value": 55000.00
-}
-```
-
-**Response (200 OK):**
-
+**Response (422 - no positions):**
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "660e8400-e29b-41d4-a716-446655440001",
-    "client_id": "550e8400-e29b-41d4-a716-446655440001",
-    "contract_number": "CTR-2024-001",
-    "project_name": "Sistema de Gestão v2",
-    "type": "staffing",
-    "start_date": "2024-01-01",
-    "end_date": "2024-12-31",
-    "monthly_value": 55000.00,
-    "created_at": "2024-01-05T08:00:00Z"
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "At least one position is required"
   }
 }
 ```
@@ -581,65 +452,196 @@ Content-Type: application/json
 
 ### DELETE /contracts/:id
 
-Delete a contract.
-
 **Request:**
-
 ```http
-DELETE /api/v1/contracts/660e8400-e29b-41d4-a716-446655440001
+DELETE /api/v1/contracts/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { "message": "Contract and associated positions deleted successfully" }
+}
+```
 
+---
+
+## 3. Positions
+
+### GET /positions
+
+List all positions with contract and allocation details.
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | integer | 1 | Page number |
+| perPage | integer | 20 | Items per page |
+| contractId | uuid | - | Filter by contract |
+| status | string | - | "open" or "filled" |
+| stackId | uuid | - | Filter by stack |
+| search | string | - | Search by title, clientName, projectName, stackName |
+
+**Request:**
+```http
+GET /api/v1/positions?status=open
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "contractId": "uuid",
+      "title": "Desenvolvedor Full Stack Senior",
+      "stackId": "uuid",
+      "seniorityId": "uuid",
+      "status": "open",
+      "startDate": "2024-01-01",
+      "endDate": "2024-12-31",
+      "allocationPercentage": 100,
+      "createdAt": "2024-01-05T08:00:00Z",
+      "contract": {
+        "id": "uuid",
+        "contractNumber": "CTR-2024-001",
+        "projectName": "Sistema de Gestão"
+      },
+      "client": {
+        "id": "uuid",
+        "name": "TechCorp Brasil"
+      },
+      "stack": {
+        "id": "uuid",
+        "name": "React"
+      },
+      "professional": null
+    }
+  ],
+  "meta": { "total": 50, "page": 1, "perPage": 20 }
+}
+```
+
+---
+
+### PUT /positions/:id
+
+Update position details.
+
+**Request:**
+```http
+PUT /api/v1/positions/uuid
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "Senior Developer",
+  "stackId": "uuid",
+  "allocationPercentage": 100
+}
+```
+
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "message": "Contract and associated positions deleted successfully",
-    "deleted_positions": 3
+    "id": "uuid",
+    "contractId": "uuid",
+    "title": "Senior Developer",
+    "stackId": "uuid",
+    "status": "open",
+    "startDate": "2024-01-01",
+    "endDate": "2024-12-31",
+    "allocationPercentage": 100,
+    "createdAt": "2024-01-05T08:00:00Z"
   }
 }
 ```
 
 ---
 
-### GET /contracts/expiring/:days
-
-Get contracts expiring within X days.
+### DELETE /positions/:id
 
 **Request:**
-
 ```http
-GET /api/v1/contracts/expiring/30
+DELETE /api/v1/positions/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { "message": "Position deleted successfully" }
+}
+```
 
+---
+
+## 4. Allocations (Staffing)
+
+### POST /allocations
+
+Assign a professional to a position.
+
+**Request:**
+```http
+POST /api/v1/allocations
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "professionalId": "uuid",
+  "positionId": "uuid",
+  "startDate": "2024-01-15",
+  "endDate": "2024-12-31",
+  "allocationPercentage": 100
+}
+```
+
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "days": 30,
-    "contracts": [
-      {
-        "id": "660e8400-e29b-41d4-a716-446655440005",
-        "contract_number": "CTR-2024-005",
-        "project_name": "Projeto Alpha",
-        "client_name": "Cliente ABC",
-        "end_date": "2024-04-15",
-        "days_until_expiration": 25,
-        "monthly_value": 40000.00,
-        "positions_count": 4,
-        "filled_positions": 3
-      }
-    ],
-    "summary": {
-      "total_contracts": 3,
-      "clients_affected": 2,
-      "professionals_involved": 8,
-      "total_monthly_value": 120000.00
+    "id": "uuid",
+    "professionalId": "uuid",
+    "positionId": "uuid",
+    "startDate": "2024-01-15",
+    "endDate": "2024-12-31",
+    "allocationPercentage": 100,
+    "createdAt": "2024-01-15T08:00:00Z"
+  }
+}
+```
+
+**Response (409 - allocation conflict):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ALLOCATION_CONFLICT",
+    "message": "Professional allocation would exceed 100%",
+    "details": {
+      "currentAllocation": 80,
+      "requestedAllocation": 50,
+      "totalAllocation": 130,
+      "conflicts": [
+        {
+          "positionId": "uuid",
+          "positionTitle": "Backend Developer",
+          "clientName": "Other Client",
+          "allocationPercentage": 80,
+          "startDate": "2024-01-01",
+          "endDate": "2024-06-30"
+        }
+      ]
     }
   }
 }
@@ -647,67 +649,301 @@ Authorization: Bearer <token>
 
 ---
 
-## 3. Stack Categories
+### DELETE /allocations/:id
 
-**Table:** `stack_categories`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Category name |
-| `description` | string | no | Description |
-| `created_at` | timestamp | auto | Creation date |
-
----
-
-### GET /stack-categories
-
-List all categories.
+Unassign a professional from a position.
 
 **Request:**
-
 ```http
-GET /api/v1/stack-categories
+DELETE /api/v1/allocations/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { "message": "Allocation removed successfully" }
+}
+```
 
+---
+
+## 5. Professionals
+
+### GET /professionals
+
+List all professionals with computed status.
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | integer | 1 | Page number |
+| perPage | integer | 20 | Items per page |
+| stackId | uuid | - | Filter by stack experience |
+| generalSeniorityId | uuid | - | Filter by seniority |
+| status | string | - | "allocated", "idle", "partial" |
+| workMode | string | - | "allocation", "factory", "both" |
+| search | string | - | Search by name or stackName |
+
+**Request:**
+```http
+GET /api/v1/professionals?status=idle
+Authorization: Bearer <token>
+```
+
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "name": "Backend",
-      "description": "Tecnologias de backend e APIs",
-      "created_at": "2024-01-01T00:00:00Z"
+      "id": "uuid",
+      "name": "João Silva",
+      "email": "joao@email.com",
+      "generalSeniorityId": "uuid",
+      "generalSeniority": {
+        "id": "uuid",
+        "name": "B2",
+        "level": 4
+      },
+      "stackExperiences": [
+        {
+          "stackId": "uuid",
+          "stackName": "React",
+          "categoryName": "Frontend",
+          "yearsExperience": 5
+        },
+        {
+          "stackId": "uuid",
+          "stackName": "Node.js",
+          "categoryName": "Backend",
+          "yearsExperience": 3
+        }
+      ],
+      "status": "allocated",
+      "workMode": "both",
+      "leaderId": "uuid",
+      "leader": {
+        "id": "uuid",
+        "name": "Maria Santos"
+      },
+      "totalAllocationPercentage": 100,
+      "createdAt": "2024-01-10T08:00:00Z",
+      "currentAllocation": {
+        "positionId": "uuid",
+        "positionTitle": "Senior Developer",
+        "clientName": "TechCorp Brasil",
+        "projectName": "Sistema de Gestão",
+        "allocationPercentage": 100,
+        "endDate": "2024-12-31"
+      }
+    }
+  ],
+  "meta": { "total": 100, "page": 1, "perPage": 20 }
+}
+```
+
+---
+
+### GET /professionals/:id
+
+**Request:**
+```http
+GET /api/v1/professionals/uuid
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "João Silva",
+    "email": "joao@email.com",
+    "generalSeniorityId": "uuid",
+    "generalSeniority": {
+      "id": "uuid",
+      "name": "B2",
+      "level": 4
+    },
+    "stackExperiences": [
+      {
+        "stackId": "uuid",
+        "stackName": "React",
+        "categoryName": "Frontend",
+        "yearsExperience": 5
+      }
+    ],
+    "status": "allocated",
+    "workMode": "both",
+    "leaderId": "uuid",
+    "createdAt": "2024-01-10T08:00:00Z",
+    "allocations": [
+      {
+        "id": "uuid",
+        "positionId": "uuid",
+        "positionTitle": "Senior Developer",
+        "clientName": "TechCorp Brasil",
+        "projectName": "Sistema de Gestão",
+        "contractType": "staffing",
+        "startDate": "2024-01-15",
+        "endDate": "2024-12-31",
+        "allocationPercentage": 100
+      }
+    ],
+    "factoryAllocations": [
+      {
+        "id": "uuid",
+        "projectId": "uuid",
+        "projectName": "App Mobile",
+        "role": "dev",
+        "stackName": "React Native",
+        "startDate": "2024-02-01",
+        "endDate": "2024-06-30",
+        "allocationPercentage": 50
+      }
+    ]
+  }
+}
+```
+
+---
+
+### POST /professionals
+
+**Request:**
+```http
+POST /api/v1/professionals
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Carlos Souza",
+  "email": "carlos@email.com",
+  "generalSeniorityId": "uuid",
+  "stackExperiences": [
+    { "stackId": "uuid", "yearsExperience": 3 },
+    { "stackId": "uuid", "yearsExperience": 2 }
+  ],
+  "workMode": "both",
+  "leaderId": "uuid"
+}
+```
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Carlos Souza",
+    "email": "carlos@email.com",
+    "generalSeniorityId": "uuid",
+    "stackExperiences": [
+      { "stackId": "uuid", "yearsExperience": 3 },
+      { "stackId": "uuid", "yearsExperience": 2 }
+    ],
+    "status": "idle",
+    "workMode": "both",
+    "leaderId": "uuid",
+    "createdAt": "2024-03-15T09:00:00Z"
+  }
+}
+```
+
+---
+
+### PUT /professionals/:id
+
+**Request:**
+```http
+PUT /api/v1/professionals/uuid
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Carlos Souza Jr.",
+  "email": "carlos.jr@email.com",
+  "generalSeniorityId": "uuid",
+  "stackExperiences": [
+    { "stackId": "uuid", "yearsExperience": 4 }
+  ],
+  "workMode": "allocation",
+  "leaderId": null
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Carlos Souza Jr.",
+    "email": "carlos.jr@email.com",
+    "generalSeniorityId": "uuid",
+    "stackExperiences": [
+      { "stackId": "uuid", "yearsExperience": 4 }
+    ],
+    "status": "idle",
+    "workMode": "allocation",
+    "leaderId": null,
+    "createdAt": "2024-03-15T09:00:00Z"
+  }
+}
+```
+
+---
+
+### DELETE /professionals/:id
+
+**Request:**
+```http
+DELETE /api/v1/professionals/uuid
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": { "message": "Professional deleted successfully" }
+}
+```
+
+---
+
+## 6. Stack Categories
+
+### GET /stackCategories
+
+**Request:**
+```http
+GET /api/v1/stackCategories
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Desenvolvimento",
+      "description": "Stacks de desenvolvimento de software",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "stackCount": 15
     },
     {
-      "id": "aa0e8400-e29b-41d4-a716-446655440002",
-      "name": "Frontend",
-      "description": "Tecnologias de interface de usuário",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "aa0e8400-e29b-41d4-a716-446655440003",
-      "name": "Mobile",
-      "description": "Desenvolvimento mobile nativo e híbrido",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "aa0e8400-e29b-41d4-a716-446655440004",
-      "name": "DevOps",
-      "description": "Infraestrutura e automação",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "aa0e8400-e29b-41d4-a716-446655440005",
-      "name": "Data",
-      "description": "Dados, BI e Machine Learning",
-      "created_at": "2024-01-01T00:00:00Z"
+      "id": "uuid",
+      "name": "QA",
+      "description": "Ferramentas de qualidade",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "stackCount": 5
     }
   ]
 }
@@ -715,172 +951,117 @@ Authorization: Bearer <token>
 
 ---
 
-### POST /stack-categories
-
-Create a category.
+### POST /stackCategories
 
 **Request:**
-
 ```http
-POST /api/v1/stack-categories
+POST /api/v1/stackCategories
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "name": "QA & Testing",
-  "description": "Qualidade e automação de testes"
+  "name": "DevOps",
+  "description": "Infraestrutura e automação"
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "aa0e8400-e29b-41d4-a716-446655440006",
-    "name": "QA & Testing",
-    "description": "Qualidade e automação de testes",
-    "created_at": "2024-03-15T12:00:00Z"
+    "id": "uuid",
+    "name": "DevOps",
+    "description": "Infraestrutura e automação",
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### PUT /stack-categories/:id
-
-Update a category.
+### PUT /stackCategories/:id
 
 **Request:**
-
 ```http
-PUT /api/v1/stack-categories/aa0e8400-e29b-41d4-a716-446655440001
+PUT /api/v1/stackCategories/uuid
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "name": "Backend & APIs",
-  "description": "Tecnologias server-side e APIs REST/GraphQL"
+  "name": "DevOps & Cloud",
+  "description": "Infraestrutura, automação e cloud"
 }
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "aa0e8400-e29b-41d4-a716-446655440001",
-    "name": "Backend & APIs",
-    "description": "Tecnologias server-side e APIs REST/GraphQL",
-    "created_at": "2024-01-01T00:00:00Z"
+    "id": "uuid",
+    "name": "DevOps & Cloud",
+    "description": "Infraestrutura, automação e cloud",
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### DELETE /stack-categories/:id
-
-Delete a category.
+### DELETE /stackCategories/:id
 
 **Request:**
-
 ```http
-DELETE /api/v1/stack-categories/aa0e8400-e29b-41d4-a716-446655440006
+DELETE /api/v1/stackCategories/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Stack category deleted successfully"
-  }
-}
-```
-
-**Response (409 Conflict):**
-
+**Response (409 - has stacks):**
 ```json
 {
   "success": false,
   "error": {
     "code": "CONFLICT",
-    "message": "Cannot delete category with existing stacks",
-    "details": {
-      "stacks_count": 5
-    }
+    "message": "Cannot delete category with associated stacks",
+    "details": { "stackCount": 5 }
   }
 }
 ```
 
 ---
 
-## 4. Stacks
-
-**Table:** `stacks`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Stack name |
-| `category_id` | uuid | yes | FK to stack_categories |
-| `created_at` | timestamp | auto | Creation date |
-
----
+## 7. Stacks
 
 ### GET /stacks
 
-List all stacks.
-
 **Query Parameters:**
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `category_id` | uuid | Filter by category |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| categoryId | uuid | - | Filter by category |
+| search | string | - | Search by name |
 
 **Request:**
-
 ```http
-GET /api/v1/stacks?category_id=aa0e8400-e29b-41d4-a716-446655440001
+GET /api/v1/stacks?categoryId=uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "880e8400-e29b-41d4-a716-446655440001",
-      "name": "Node.js",
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "880e8400-e29b-41d4-a716-446655440002",
-      "name": "Python",
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "880e8400-e29b-41d4-a716-446655440003",
-      "name": "Java",
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "880e8400-e29b-41d4-a716-446655440004",
-      "name": ".NET",
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "created_at": "2024-01-01T00:00:00Z"
+      "id": "uuid",
+      "name": "React",
+      "categoryId": "uuid",
+      "categoryName": "Frontend",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "professionalCount": 25,
+      "positionCount": 10,
+      "filledPositions": 8
     }
   ]
 }
@@ -890,31 +1071,27 @@ Authorization: Bearer <token>
 
 ### POST /stacks
 
-Create a stack.
-
 **Request:**
-
 ```http
 POST /api/v1/stacks
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "name": "Go",
-  "category_id": "aa0e8400-e29b-41d4-a716-446655440001"
+  "name": "Vue.js",
+  "categoryId": "uuid"
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "880e8400-e29b-41d4-a716-446655440010",
-    "name": "Go",
-    "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-    "created_at": "2024-03-15T14:00:00Z"
+    "id": "uuid",
+    "name": "Vue.js",
+    "categoryId": "uuid",
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
@@ -923,30 +1100,27 @@ Content-Type: application/json
 
 ### PUT /stacks/:id
 
-Update a stack.
-
 **Request:**
-
 ```http
-PUT /api/v1/stacks/880e8400-e29b-41d4-a716-446655440001
+PUT /api/v1/stacks/uuid
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "name": "Node.js / TypeScript"
+  "name": "Vue.js 3",
+  "categoryId": "uuid"
 }
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "880e8400-e29b-41d4-a716-446655440001",
-    "name": "Node.js / TypeScript",
-    "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-    "created_at": "2024-01-01T00:00:00Z"
+    "id": "uuid",
+    "name": "Vue.js 3",
+    "categoryId": "uuid",
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
@@ -955,97 +1129,59 @@ Content-Type: application/json
 
 ### DELETE /stacks/:id
 
-Delete a stack.
-
 **Request:**
-
 ```http
-DELETE /api/v1/stacks/880e8400-e29b-41d4-a716-446655440010
+DELETE /api/v1/stacks/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "message": "Stack deleted successfully"
-  }
+  "data": { "message": "Stack deleted successfully" }
 }
 ```
 
 ---
 
-## 5. General Seniorities
+## 8. General Seniorities
 
-**Table:** `general_seniorities`
+### GET /generalSeniorities
 
-System-wide seniority levels (e.g., A1-C5).
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Level name (e.g., "A1") |
-| `level` | integer | yes | Order (1 = lowest) |
-| `description` | string | no | Description |
-| `created_at` | timestamp | auto | Creation date |
-
----
-
-### GET /general-seniorities
-
-List all seniorities ordered by level.
+Returns ordered list by level.
 
 **Request:**
-
 ```http
-GET /api/v1/general-seniorities
+GET /api/v1/generalSeniorities
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "bb0e8400-e29b-41d4-a716-446655440001",
+      "id": "uuid",
       "name": "A1",
       "level": 1,
-      "description": "Trainee / Estagiário",
-      "created_at": "2024-01-01T00:00:00Z"
+      "description": "Estagiário",
+      "createdAt": "2024-01-01T00:00:00Z"
     },
     {
-      "id": "bb0e8400-e29b-41d4-a716-446655440002",
+      "id": "uuid",
       "name": "A2",
       "level": 2,
-      "description": "Junior I",
-      "created_at": "2024-01-01T00:00:00Z"
+      "description": "Junior 1",
+      "createdAt": "2024-01-01T00:00:00Z"
     },
     {
-      "id": "bb0e8400-e29b-41d4-a716-446655440003",
+      "id": "uuid",
       "name": "B1",
       "level": 3,
-      "description": "Pleno I",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "bb0e8400-e29b-41d4-a716-446655440004",
-      "name": "B2",
-      "level": 4,
-      "description": "Pleno II",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "bb0e8400-e29b-41d4-a716-446655440005",
-      "name": "C1",
-      "level": 5,
-      "description": "Senior I",
-      "created_at": "2024-01-01T00:00:00Z"
+      "description": "Pleno 1",
+      "createdAt": "2024-01-01T00:00:00Z"
     }
   ]
 }
@@ -1053,1178 +1189,166 @@ Authorization: Bearer <token>
 
 ---
 
-### POST /general-seniorities
-
-Create a seniority level.
+### POST /generalSeniorities
 
 **Request:**
-
 ```http
-POST /api/v1/general-seniorities
+POST /api/v1/generalSeniorities
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "name": "C5",
   "level": 10,
-  "description": "Principal / Staff Engineer"
+  "description": "Principal Engineer"
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "bb0e8400-e29b-41d4-a716-446655440010",
+    "id": "uuid",
     "name": "C5",
     "level": 10,
-    "description": "Principal / Staff Engineer",
-    "created_at": "2024-03-15T15:00:00Z"
+    "description": "Principal Engineer",
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### PUT /general-seniorities/reorder
-
-Batch reorder seniority levels.
+### PUT /generalSeniorities/:id
 
 **Request:**
-
 ```http
-PUT /api/v1/general-seniorities/reorder
+PUT /api/v1/generalSeniorities/uuid
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "C5",
+  "level": 10,
+  "description": "Distinguished Engineer"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "C5",
+    "level": 10,
+    "description": "Distinguished Engineer",
+    "createdAt": "2024-03-15T09:00:00Z"
+  }
+}
+```
+
+---
+
+### PUT /generalSeniorities/reorder
+
+Bulk update levels for drag-and-drop reordering.
+
+**Request:**
+```http
+PUT /api/v1/generalSeniorities/reorder
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "items": [
-    { "id": "bb0e8400-e29b-41d4-a716-446655440001", "level": 1 },
-    { "id": "bb0e8400-e29b-41d4-a716-446655440002", "level": 2 },
-    { "id": "bb0e8400-e29b-41d4-a716-446655440003", "level": 3 },
-    { "id": "bb0e8400-e29b-41d4-a716-446655440004", "level": 4 },
-    { "id": "bb0e8400-e29b-41d4-a716-446655440005", "level": 5 }
+    { "id": "uuid", "level": 1 },
+    { "id": "uuid", "level": 2 },
+    { "id": "uuid", "level": 3 }
   ]
 }
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "message": "Seniority levels reordered successfully",
-    "updated_count": 5
-  }
+  "data": { "message": "Order updated successfully" }
 }
 ```
 
 ---
 
-### PUT /general-seniorities/:id
-
-Update a seniority level.
+### DELETE /generalSeniorities/:id
 
 **Request:**
-
 ```http
-PUT /api/v1/general-seniorities/bb0e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "A1",
-  "description": "Trainee / Estagiário (até 1 ano)"
-}
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "bb0e8400-e29b-41d4-a716-446655440001",
-    "name": "A1",
-    "level": 1,
-    "description": "Trainee / Estagiário (até 1 ano)",
-    "created_at": "2024-01-01T00:00:00Z"
-  }
-}
-```
-
----
-
-### DELETE /general-seniorities/:id
-
-Delete a seniority level.
-
-**Request:**
-
-```http
-DELETE /api/v1/general-seniorities/bb0e8400-e29b-41d4-a716-446655440010
+DELETE /api/v1/generalSeniorities/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "message": "General seniority deleted successfully"
-  }
+  "data": { "message": "Seniority deleted successfully" }
 }
 ```
 
 ---
 
-## 6. Seniorities (Per Stack Category)
+## 9. Teams View
 
-**Table:** `seniorities`
+### GET /teams
 
-Category-specific seniority levels.
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Seniority name |
-| `level` | integer | yes | Order within category |
-| `category_id` | uuid | yes | FK to stack_categories |
-| `description` | string | no | Description |
-| `created_at` | timestamp | auto | Creation date |
-
----
-
-### GET /seniorities
-
-List all seniorities.
+Returns contracts with team composition (members allocated).
 
 **Query Parameters:**
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `category_id` | uuid | Filter by category |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| type | string | - | "staffing" or "fabrica" |
+| status | string | - | Contract status filter |
+| search | string | - | Search by projectName, clientName, professionalName |
 
 **Request:**
-
 ```http
-GET /api/v1/seniorities?category_id=aa0e8400-e29b-41d4-a716-446655440001
+GET /api/v1/teams?type=staffing
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "990e8400-e29b-41d4-a716-446655440001",
-      "name": "Junior",
-      "level": 1,
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "description": "0-2 anos de experiência",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "990e8400-e29b-41d4-a716-446655440002",
-      "name": "Pleno",
-      "level": 2,
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "description": "2-5 anos de experiência",
-      "created_at": "2024-01-01T00:00:00Z"
-    },
-    {
-      "id": "990e8400-e29b-41d4-a716-446655440003",
-      "name": "Senior",
-      "level": 3,
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "description": "5+ anos de experiência",
-      "created_at": "2024-01-01T00:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-### POST /seniorities
-
-Create a seniority.
-
-**Request:**
-
-```http
-POST /api/v1/seniorities
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "Especialista",
-  "level": 4,
-  "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-  "description": "8+ anos, referência técnica"
-}
-```
-
-**Response (201 Created):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "990e8400-e29b-41d4-a716-446655440004",
-    "name": "Especialista",
-    "level": 4,
-    "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-    "description": "8+ anos, referência técnica",
-    "created_at": "2024-03-15T16:00:00Z"
-  }
-}
-```
-
----
-
-## 7. Professionals
-
-**Table:** `professionals`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Full name |
-| `email` | string | no | Email address |
-| `general_seniority_id` | uuid | no | FK to general_seniorities |
-| `status` | enum | yes | Current status |
-| `work_mode` | enum | yes | Work mode |
-| `leader_id` | uuid | no | FK to professionals (self-ref) |
-| `total_years_experience` | integer | no | Total years of experience |
-| `created_at` | timestamp | auto | Creation date |
-
-**Related Table:** `professional_stack_experiences`
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `professional_id` | uuid | yes | FK to professionals |
-| `stack_id` | uuid | yes | FK to stacks |
-| `years_experience` | integer | yes | Years in this stack |
-
-### Enums
-
-```typescript
-type ProfessionalStatus = 'allocated' | 'idle' | 'partial' | 'vacation' | 'notice';
-type ProfessionalWorkMode = 'allocation' | 'factory' | 'both';
-```
-
----
-
-### GET /professionals
-
-List all professionals.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `page` | integer | Page number |
-| `per_page` | integer | Items per page |
-| `status` | string | Filter by status |
-| `work_mode` | string | Filter by work mode |
-| `leader_id` | uuid | Filter by leader |
-| `stack_id` | uuid | Filter by stack experience |
-| `general_seniority_id` | uuid | Filter by seniority |
-| `search` | string | Search by name or email |
-
-**Request:**
-
-```http
-GET /api/v1/professionals?status=idle&work_mode=allocation
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "cc0e8400-e29b-41d4-a716-446655440001",
-      "name": "João Silva",
-      "email": "joao.silva@email.com",
-      "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440003",
-      "status": "idle",
-      "work_mode": "allocation",
-      "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-      "total_years_experience": 5,
-      "created_at": "2024-01-10T09:00:00Z",
-      "stack_experiences": [
+      "contractId": "uuid",
+      "contractNumber": "CTR-2024-001",
+      "projectName": "Sistema de Gestão",
+      "clientName": "TechCorp Brasil",
+      "contractType": "staffing",
+      "startDate": "2024-01-01",
+      "endDate": "2024-12-31",
+      "status": "active",
+      "daysUntilExpiration": 180,
+      "totalPositions": 5,
+      "filledPositions": 4,
+      "members": [
         {
-          "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-          "stack_name": "Node.js",
-          "years_experience": 3
-        },
-        {
-          "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-          "stack_name": "React",
-          "years_experience": 4
+          "professionalId": "uuid",
+          "professionalName": "João Silva",
+          "positionTitle": "Senior Developer",
+          "stackName": "React",
+          "categoryName": "Frontend",
+          "startDate": "2024-01-15",
+          "endDate": "2024-12-31",
+          "allocationPercentage": 100
         }
       ]
     }
-  ],
-  "meta": {
-    "total": 15,
-    "page": 1,
-    "per_page": 20
-  }
-}
-```
-
----
-
-### GET /professionals/:id
-
-Get professional by ID.
-
-**Request:**
-
-```http
-GET /api/v1/professionals/cc0e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "cc0e8400-e29b-41d4-a716-446655440001",
-    "name": "João Silva",
-    "email": "joao.silva@email.com",
-    "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440003",
-    "status": "allocated",
-    "work_mode": "allocation",
-    "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-    "total_years_experience": 5,
-    "created_at": "2024-01-10T09:00:00Z",
-    "stack_experiences": [
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-        "stack_name": "Node.js",
-        "years_experience": 3
-      },
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-        "stack_name": "React",
-        "years_experience": 4
-      }
-    ]
-  }
-}
-```
-
----
-
-### GET /professionals/:id/details
-
-Get professional with full details including allocations.
-
-**Request:**
-
-```http
-GET /api/v1/professionals/cc0e8400-e29b-41d4-a716-446655440001/details
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "cc0e8400-e29b-41d4-a716-446655440001",
-    "name": "João Silva",
-    "email": "joao.silva@email.com",
-    "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440003",
-    "general_seniority": {
-      "id": "bb0e8400-e29b-41d4-a716-446655440003",
-      "name": "B1",
-      "level": 3,
-      "description": "Pleno I"
-    },
-    "status": "allocated",
-    "work_mode": "allocation",
-    "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-    "leader": {
-      "id": "cc0e8400-e29b-41d4-a716-446655440010",
-      "name": "Maria Santos"
-    },
-    "total_years_experience": 5,
-    "created_at": "2024-01-10T09:00:00Z",
-    "stack_experiences": [
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-        "stack_name": "Node.js",
-        "category_name": "Backend",
-        "years_experience": 3
-      }
-    ],
-    "current_allocation": {
-      "total_percentage": 100,
-      "staffing_allocations": [
-        {
-          "id": "dd0e8400-e29b-41d4-a716-446655440001",
-          "position_id": "770e8400-e29b-41d4-a716-446655440001",
-          "position_title": "Desenvolvedor Full Stack Senior",
-          "client_name": "TechCorp Brasil",
-          "project_name": "Sistema de Gestão",
-          "start_date": "2024-01-15",
-          "end_date": "2024-12-31",
-          "allocation_percentage": 100
-        }
-      ],
-      "factory_allocations": []
-    },
-    "allocation_history": [
-      {
-        "id": "dd0e8400-e29b-41d4-a716-446655440000",
-        "type": "staffing",
-        "client_name": "Outro Cliente",
-        "project_name": "Projeto Antigo",
-        "start_date": "2023-06-01",
-        "end_date": "2024-01-10",
-        "allocation_percentage": 100
-      }
-    ]
-  }
-}
-```
-
----
-
-### GET /professionals/available
-
-Get professionals available for allocation.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `min_availability` | integer | Minimum % available (default: 1) |
-| `stack_id` | uuid | Filter by stack |
-| `work_mode` | string | Filter by work mode |
-
-**Request:**
-
-```http
-GET /api/v1/professionals/available?min_availability=50&stack_id=880e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "cc0e8400-e29b-41d4-a716-446655440005",
-      "name": "Pedro Almeida",
-      "status": "partial",
-      "current_allocation_percentage": 50,
-      "available_percentage": 50,
-      "stack_experiences": [
-        {
-          "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-          "stack_name": "Node.js",
-          "years_experience": 4
-        }
-      ],
-      "general_seniority": {
-        "name": "B2",
-        "level": 4
-      }
-    },
-    {
-      "id": "cc0e8400-e29b-41d4-a716-446655440006",
-      "name": "Ana Costa",
-      "status": "idle",
-      "current_allocation_percentage": 0,
-      "available_percentage": 100,
-      "stack_experiences": [
-        {
-          "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-          "stack_name": "Node.js",
-          "years_experience": 2
-        }
-      ],
-      "general_seniority": {
-        "name": "A2",
-        "level": 2
-      }
-    }
   ]
-}
-```
-
----
-
-### POST /professionals
-
-Create a professional.
-
-**Request:**
-
-```http
-POST /api/v1/professionals
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "Carlos Mendes",
-  "email": "carlos.mendes@email.com",
-  "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440002",
-  "status": "idle",
-  "work_mode": "both",
-  "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-  "total_years_experience": 3,
-  "stack_experiences": [
-    {
-      "stack_id": "880e8400-e29b-41d4-a716-446655440002",
-      "years_experience": 2
-    },
-    {
-      "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-      "years_experience": 3
-    }
-  ]
-}
-```
-
-**Response (201 Created):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "cc0e8400-e29b-41d4-a716-446655440020",
-    "name": "Carlos Mendes",
-    "email": "carlos.mendes@email.com",
-    "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440002",
-    "status": "idle",
-    "work_mode": "both",
-    "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-    "total_years_experience": 3,
-    "created_at": "2024-03-15T17:00:00Z",
-    "stack_experiences": [
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440002",
-        "stack_name": "Python",
-        "years_experience": 2
-      },
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-        "stack_name": "React",
-        "years_experience": 3
-      }
-    ]
-  }
-}
-```
-
----
-
-### PUT /professionals/:id
-
-Update a professional.
-
-**Request:**
-
-```http
-PUT /api/v1/professionals/cc0e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440004",
-  "status": "vacation",
-  "stack_experiences": [
-    {
-      "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-      "years_experience": 4
-    },
-    {
-      "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-      "years_experience": 5
-    }
-  ]
-}
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "cc0e8400-e29b-41d4-a716-446655440001",
-    "name": "João Silva",
-    "email": "joao.silva@email.com",
-    "general_seniority_id": "bb0e8400-e29b-41d4-a716-446655440004",
-    "status": "vacation",
-    "work_mode": "allocation",
-    "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-    "total_years_experience": 5,
-    "created_at": "2024-01-10T09:00:00Z",
-    "stack_experiences": [
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-        "stack_name": "Node.js",
-        "years_experience": 4
-      },
-      {
-        "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-        "stack_name": "React",
-        "years_experience": 5
-      }
-    ]
-  }
-}
-```
-
----
-
-### DELETE /professionals/:id
-
-Delete a professional.
-
-**Request:**
-
-```http
-DELETE /api/v1/professionals/cc0e8400-e29b-41d4-a716-446655440020
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Professional deleted successfully"
-  }
-}
-```
-
-**Response (409 Conflict):**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "CONFLICT",
-    "message": "Cannot delete professional with active allocations",
-    "details": {
-      "active_allocations": 2
-    }
-  }
-}
-```
-
----
-
-## 8. Positions (Vacancies)
-
-**Table:** `positions`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `contract_id` | uuid | yes | FK to contracts |
-| `title` | string | yes | Position title |
-| `stack_id` | uuid | yes | FK to stacks |
-| `seniority_id` | uuid | no | FK to seniorities |
-| `status` | enum | yes | 'open' or 'filled' |
-| `start_date` | date | yes | Position start |
-| `end_date` | date | yes | Position end |
-| `allocation_percentage` | integer | yes | Required % (1-100) |
-| `created_at` | timestamp | auto | Creation date |
-
-### Enums
-
-```typescript
-type PositionStatus = 'open' | 'filled';
-```
-
----
-
-### GET /positions
-
-List all positions.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `contract_id` | uuid | Filter by contract |
-| `status` | string | Filter by status |
-| `stack_id` | uuid | Filter by stack |
-
-**Request:**
-
-```http
-GET /api/v1/positions?status=open
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "770e8400-e29b-41d4-a716-446655440001",
-      "contract_id": "660e8400-e29b-41d4-a716-446655440001",
-      "title": "Desenvolvedor Full Stack Senior",
-      "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-      "seniority_id": "990e8400-e29b-41d4-a716-446655440003",
-      "status": "open",
-      "start_date": "2024-04-01",
-      "end_date": "2024-12-31",
-      "allocation_percentage": 100,
-      "created_at": "2024-03-01T10:00:00Z"
-    }
-  ],
-  "meta": {
-    "total": 12,
-    "page": 1,
-    "per_page": 20
-  }
-}
-```
-
----
-
-### GET /positions/:id
-
-Get position by ID with details.
-
-**Request:**
-
-```http
-GET /api/v1/positions/770e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "770e8400-e29b-41d4-a716-446655440001",
-    "contract_id": "660e8400-e29b-41d4-a716-446655440001",
-    "title": "Desenvolvedor Full Stack Senior",
-    "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-    "seniority_id": "990e8400-e29b-41d4-a716-446655440003",
-    "status": "filled",
-    "start_date": "2024-01-15",
-    "end_date": "2024-12-31",
-    "allocation_percentage": 100,
-    "created_at": "2024-01-05T08:00:00Z",
-    "contract": {
-      "id": "660e8400-e29b-41d4-a716-446655440001",
-      "contract_number": "CTR-2024-001",
-      "project_name": "Sistema de Gestão"
-    },
-    "client": {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "name": "TechCorp Brasil"
-    },
-    "stack": {
-      "id": "880e8400-e29b-41d4-a716-446655440001",
-      "name": "Node.js",
-      "category_name": "Backend"
-    },
-    "seniority": {
-      "id": "990e8400-e29b-41d4-a716-446655440003",
-      "name": "Senior"
-    },
-    "current_allocation": {
-      "id": "dd0e8400-e29b-41d4-a716-446655440001",
-      "professional_id": "cc0e8400-e29b-41d4-a716-446655440001",
-      "professional_name": "João Silva",
-      "start_date": "2024-01-15",
-      "end_date": "2024-12-31",
-      "allocation_percentage": 100
-    }
-  }
-}
-```
-
----
-
-### POST /positions
-
-Create a position.
-
-**Request:**
-
-```http
-POST /api/v1/positions
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "contract_id": "660e8400-e29b-41d4-a716-446655440001",
-  "title": "DevOps Engineer",
-  "stack_id": "880e8400-e29b-41d4-a716-446655440006",
-  "seniority_id": "990e8400-e29b-41d4-a716-446655440002",
-  "start_date": "2024-05-01",
-  "end_date": "2024-12-31",
-  "allocation_percentage": 50
-}
-```
-
-**Response (201 Created):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "770e8400-e29b-41d4-a716-446655440020",
-    "contract_id": "660e8400-e29b-41d4-a716-446655440001",
-    "title": "DevOps Engineer",
-    "stack_id": "880e8400-e29b-41d4-a716-446655440006",
-    "seniority_id": "990e8400-e29b-41d4-a716-446655440002",
-    "status": "open",
-    "start_date": "2024-05-01",
-    "end_date": "2024-12-31",
-    "allocation_percentage": 50,
-    "created_at": "2024-03-15T18:00:00Z"
-  }
-}
-```
-
----
-
-### PUT /positions/:id
-
-Update a position.
-
-**Request:**
-
-```http
-PUT /api/v1/positions/770e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "title": "Senior Full Stack Developer",
-  "allocation_percentage": 80
-}
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "770e8400-e29b-41d4-a716-446655440001",
-    "contract_id": "660e8400-e29b-41d4-a716-446655440001",
-    "title": "Senior Full Stack Developer",
-    "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-    "seniority_id": "990e8400-e29b-41d4-a716-446655440003",
-    "status": "filled",
-    "start_date": "2024-01-15",
-    "end_date": "2024-12-31",
-    "allocation_percentage": 80,
-    "created_at": "2024-01-05T08:00:00Z"
-  }
-}
-```
-
----
-
-### DELETE /positions/:id
-
-Delete a position.
-
-**Request:**
-
-```http
-DELETE /api/v1/positions/770e8400-e29b-41d4-a716-446655440020
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Position deleted successfully",
-    "deleted_allocations": 0
-  }
-}
-```
-
----
-
-## 9. Allocations (Staffing)
-
-**Table:** `allocations`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `professional_id` | uuid | yes | FK to professionals |
-| `position_id` | uuid | yes | FK to positions |
-| `start_date` | date | yes | Allocation start |
-| `end_date` | date | no | Allocation end |
-| `allocation_percentage` | integer | yes | Allocation % |
-| `created_at` | timestamp | auto | Creation date |
-
----
-
-### GET /allocations
-
-List all allocations.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `professional_id` | uuid | Filter by professional |
-| `position_id` | uuid | Filter by position |
-| `active` | boolean | Filter active only |
-
-**Request:**
-
-```http
-GET /api/v1/allocations?active=true
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "dd0e8400-e29b-41d4-a716-446655440001",
-      "professional_id": "cc0e8400-e29b-41d4-a716-446655440001",
-      "position_id": "770e8400-e29b-41d4-a716-446655440001",
-      "start_date": "2024-01-15",
-      "end_date": "2024-12-31",
-      "allocation_percentage": 100,
-      "created_at": "2024-01-15T09:00:00Z"
-    }
-  ],
-  "meta": {
-    "total": 45,
-    "page": 1,
-    "per_page": 20
-  }
-}
-```
-
----
-
-### POST /allocations
-
-Create an allocation (assign professional to position).
-
-**Request:**
-
-```http
-POST /api/v1/allocations
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "professional_id": "cc0e8400-e29b-41d4-a716-446655440005",
-  "position_id": "770e8400-e29b-41d4-a716-446655440002",
-  "start_date": "2024-04-01",
-  "end_date": "2024-12-31",
-  "allocation_percentage": 100
-}
-```
-
-**Response (201 Created):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "dd0e8400-e29b-41d4-a716-446655440010",
-    "professional_id": "cc0e8400-e29b-41d4-a716-446655440005",
-    "position_id": "770e8400-e29b-41d4-a716-446655440002",
-    "start_date": "2024-04-01",
-    "end_date": "2024-12-31",
-    "allocation_percentage": 100,
-    "created_at": "2024-03-15T19:00:00Z"
-  },
-  "side_effects": {
-    "position_status_updated": "filled",
-    "professional_status_updated": "allocated"
-  }
-}
-```
-
-**Response (422 Validation Error - Conflict):**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ALLOCATION_CONFLICT",
-    "message": "Allocation would exceed 100% capacity",
-    "details": {
-      "professional_id": "cc0e8400-e29b-41d4-a716-446655440005",
-      "current_allocation": 50,
-      "requested_allocation": 100,
-      "total_would_be": 150,
-      "conflicting_allocations": [
-        {
-          "id": "dd0e8400-e29b-41d4-a716-446655440005",
-          "position_title": "Backend Developer",
-          "client_name": "Outro Cliente",
-          "allocation_percentage": 50,
-          "period": "2024-03-01 to 2024-09-30"
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-### POST /allocations (with override)
-
-Force allocation with conflict override.
-
-**Request:**
-
-```http
-POST /api/v1/allocations
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "professional_id": "cc0e8400-e29b-41d4-a716-446655440005",
-  "position_id": "770e8400-e29b-41d4-a716-446655440002",
-  "start_date": "2024-04-01",
-  "end_date": "2024-12-31",
-  "allocation_percentage": 100,
-  "override_conflict": true,
-  "override_justification": "Demanda urgente do cliente, profissional trabalhará horas extras"
-}
-```
-
-**Response (201 Created):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "dd0e8400-e29b-41d4-a716-446655440010",
-    "professional_id": "cc0e8400-e29b-41d4-a716-446655440005",
-    "position_id": "770e8400-e29b-41d4-a716-446655440002",
-    "start_date": "2024-04-01",
-    "end_date": "2024-12-31",
-    "allocation_percentage": 100,
-    "created_at": "2024-03-15T19:00:00Z"
-  },
-  "warning": {
-    "message": "Allocation created with override. Total allocation is 150%",
-    "override_logged": true
-  }
-}
-```
-
----
-
-### PUT /allocations/:id
-
-Update an allocation.
-
-**Request:**
-
-```http
-PUT /api/v1/allocations/dd0e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "end_date": "2024-06-30",
-  "allocation_percentage": 80
-}
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "dd0e8400-e29b-41d4-a716-446655440001",
-    "professional_id": "cc0e8400-e29b-41d4-a716-446655440001",
-    "position_id": "770e8400-e29b-41d4-a716-446655440001",
-    "start_date": "2024-01-15",
-    "end_date": "2024-06-30",
-    "allocation_percentage": 80,
-    "created_at": "2024-01-15T09:00:00Z"
-  },
-  "side_effects": {
-    "professional_status_updated": "partial"
-  }
-}
-```
-
----
-
-### DELETE /allocations/:id
-
-Delete an allocation (unassign professional).
-
-**Request:**
-
-```http
-DELETE /api/v1/allocations/dd0e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Allocation deleted successfully"
-  },
-  "side_effects": {
-    "position_status_updated": "open",
-    "professional_status_updated": "idle"
-  }
 }
 ```
 
@@ -2232,133 +1356,106 @@ Authorization: Bearer <token>
 
 ## 10. Factory Projects
 
-**Table:** `factory_projects`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `name` | string | yes | Project name |
-| `client_id` | uuid | no | FK to clients |
-| `description` | string | yes | Description |
-| `start_date` | date | yes | Project start |
-| `end_date` | date | yes | Project end |
-| `status` | enum | yes | Project status |
-| `progress_percentage` | integer | yes | Progress (0-100) |
-| `created_at` | timestamp | auto | Creation date |
-
-### Enums
-
-```typescript
-type FactoryProjectStatus = 'planned' | 'in_progress' | 'finished' | 'paused';
-```
-
----
-
-### GET /factory-projects
-
-List all factory projects.
+### GET /factoryProjects
 
 **Query Parameters:**
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `status` | string | Filter by status |
-| `client_id` | uuid | Filter by client |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| status | string | - | "planned", "inProgress", "finished", "paused" |
+| search | string | - | Search by name, description, clientName |
 
 **Request:**
-
 ```http
-GET /api/v1/factory-projects?status=in_progress
+GET /api/v1/factoryProjects?status=inProgress
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "ee0e8400-e29b-41d4-a716-446655440001",
-      "name": "App Mobile Financeiro",
-      "client_id": "550e8400-e29b-41d4-a716-446655440002",
-      "description": "Desenvolvimento de aplicativo mobile para gestão financeira",
-      "start_date": "2024-02-01",
-      "end_date": "2024-08-31",
-      "status": "in_progress",
-      "progress_percentage": 45,
-      "created_at": "2024-01-20T10:00:00Z"
+      "id": "uuid",
+      "name": "App Mobile Banking",
+      "clientId": "uuid",
+      "client": {
+        "id": "uuid",
+        "name": "Banco XYZ"
+      },
+      "description": "Aplicativo mobile para transações bancárias",
+      "startDate": "2024-02-01",
+      "endDate": "2024-08-31",
+      "status": "inProgress",
+      "progressPercentage": 45,
+      "createdAt": "2024-01-20T10:00:00Z",
+      "totalMembers": 6,
+      "daysRemaining": 120,
+      "daysElapsed": 60,
+      "totalDays": 180,
+      "calculatedProgress": 33,
+      "allocations": [
+        {
+          "id": "uuid",
+          "professionalId": "uuid",
+          "professionalName": "Carlos Dev",
+          "role": "dev",
+          "stackId": "uuid",
+          "stackName": "React Native",
+          "startDate": "2024-02-01",
+          "endDate": "2024-08-31",
+          "allocationPercentage": 100
+        }
+      ]
     }
-  ],
-  "meta": {
-    "total": 8,
-    "page": 1,
-    "per_page": 20
-  }
+  ]
 }
 ```
 
 ---
 
-### GET /factory-projects/:id/details
-
-Get project with full details.
+### GET /factoryProjects/:id
 
 **Request:**
-
 ```http
-GET /api/v1/factory-projects/ee0e8400-e29b-41d4-a716-446655440001/details
+GET /api/v1/factoryProjects/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "ee0e8400-e29b-41d4-a716-446655440001",
-    "name": "App Mobile Financeiro",
-    "client_id": "550e8400-e29b-41d4-a716-446655440002",
-    "description": "Desenvolvimento de aplicativo mobile para gestão financeira",
-    "start_date": "2024-02-01",
-    "end_date": "2024-08-31",
-    "status": "in_progress",
-    "progress_percentage": 45,
-    "created_at": "2024-01-20T10:00:00Z",
+    "id": "uuid",
+    "name": "App Mobile Banking",
+    "clientId": "uuid",
     "client": {
-      "id": "550e8400-e29b-41d4-a716-446655440002",
-      "name": "FinTech Solutions"
+      "id": "uuid",
+      "name": "Banco XYZ"
     },
-    "days_remaining": 120,
-    "days_elapsed": 90,
-    "total_days": 210,
-    "calculated_progress": 43,
-    "total_members": 5,
+    "description": "Aplicativo mobile para transações bancárias",
+    "startDate": "2024-02-01",
+    "endDate": "2024-08-31",
+    "status": "inProgress",
+    "progressPercentage": 45,
+    "createdAt": "2024-01-20T10:00:00Z",
     "allocations": [
       {
-        "id": "ff0e8400-e29b-41d4-a716-446655440001",
-        "professional_id": "cc0e8400-e29b-41d4-a716-446655440002",
-        "professional_name": "Maria Santos",
-        "role": "tech_lead",
-        "stack_id": "880e8400-e29b-41d4-a716-446655440003",
-        "stack_name": "React Native",
-        "start_date": "2024-02-01",
-        "end_date": "2024-08-31",
-        "allocation_percentage": 100
-      },
-      {
-        "id": "ff0e8400-e29b-41d4-a716-446655440002",
-        "professional_id": "cc0e8400-e29b-41d4-a716-446655440003",
-        "professional_name": "Lucas Oliveira",
+        "id": "uuid",
+        "professionalId": "uuid",
+        "professional": {
+          "id": "uuid",
+          "name": "Carlos Dev",
+          "generalSeniority": { "id": "uuid", "name": "B2" }
+        },
         "role": "dev",
-        "stack_id": "880e8400-e29b-41d4-a716-446655440003",
-        "stack_name": "React Native",
-        "start_date": "2024-02-15",
-        "end_date": "2024-08-31",
-        "allocation_percentage": 100
+        "stackId": "uuid",
+        "stack": { "id": "uuid", "name": "React Native" },
+        "startDate": "2024-02-01",
+        "endDate": "2024-08-31",
+        "allocationPercentage": 100
       }
     ]
   }
@@ -2367,107 +1464,93 @@ Authorization: Bearer <token>
 
 ---
 
-### POST /factory-projects
-
-Create a factory project.
+### POST /factoryProjects
 
 **Request:**
-
 ```http
-POST /api/v1/factory-projects
+POST /api/v1/factoryProjects
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
   "name": "Sistema ERP",
-  "client_id": "550e8400-e29b-41d4-a716-446655440003",
-  "description": "Desenvolvimento de sistema ERP completo",
-  "start_date": "2024-05-01",
-  "end_date": "2025-04-30",
+  "clientId": "uuid",
+  "description": "Sistema de gestão empresarial",
+  "startDate": "2024-04-01",
+  "endDate": "2024-12-31",
   "status": "planned",
-  "progress_percentage": 0
+  "progressPercentage": 0
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "ee0e8400-e29b-41d4-a716-446655440010",
+    "id": "uuid",
     "name": "Sistema ERP",
-    "client_id": "550e8400-e29b-41d4-a716-446655440003",
-    "description": "Desenvolvimento de sistema ERP completo",
-    "start_date": "2024-05-01",
-    "end_date": "2025-04-30",
+    "clientId": "uuid",
+    "description": "Sistema de gestão empresarial",
+    "startDate": "2024-04-01",
+    "endDate": "2024-12-31",
     "status": "planned",
-    "progress_percentage": 0,
-    "created_at": "2024-03-15T20:00:00Z"
+    "progressPercentage": 0,
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### PUT /factory-projects/:id
-
-Update a factory project.
+### PUT /factoryProjects/:id
 
 **Request:**
-
 ```http
-PUT /api/v1/factory-projects/ee0e8400-e29b-41d4-a716-446655440001
+PUT /api/v1/factoryProjects/uuid
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "status": "in_progress",
-  "progress_percentage": 50
+  "name": "Sistema ERP v2",
+  "status": "inProgress",
+  "progressPercentage": 10
 }
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "ee0e8400-e29b-41d4-a716-446655440001",
-    "name": "App Mobile Financeiro",
-    "client_id": "550e8400-e29b-41d4-a716-446655440002",
-    "description": "Desenvolvimento de aplicativo mobile para gestão financeira",
-    "start_date": "2024-02-01",
-    "end_date": "2024-08-31",
-    "status": "in_progress",
-    "progress_percentage": 50,
-    "created_at": "2024-01-20T10:00:00Z"
+    "id": "uuid",
+    "name": "Sistema ERP v2",
+    "clientId": "uuid",
+    "description": "Sistema de gestão empresarial",
+    "startDate": "2024-04-01",
+    "endDate": "2024-12-31",
+    "status": "inProgress",
+    "progressPercentage": 10,
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### DELETE /factory-projects/:id
-
-Delete a factory project.
+### DELETE /factoryProjects/:id
 
 **Request:**
-
 ```http
-DELETE /api/v1/factory-projects/ee0e8400-e29b-41d4-a716-446655440010
+DELETE /api/v1/factoryProjects/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "message": "Factory project deleted successfully",
-    "deleted_allocations": 0
-  }
+  "data": { "message": "Factory project and allocations deleted successfully" }
 }
 ```
 
@@ -2475,358 +1558,171 @@ Authorization: Bearer <token>
 
 ## 11. Factory Allocations
 
-**Table:** `factory_allocations`
-
-### Schema
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | uuid | auto | Primary key |
-| `project_id` | uuid | yes | FK to factory_projects |
-| `professional_id` | uuid | yes | FK to professionals |
-| `role` | enum | yes | Role in project |
-| `stack_id` | uuid | yes | FK to stacks |
-| `start_date` | date | yes | Allocation start |
-| `end_date` | date | yes | Allocation end |
-| `allocation_percentage` | integer | yes | Allocation % |
-| `created_at` | timestamp | auto | Creation date |
-
-### Enums
-
-```typescript
-type FactoryRole = 'dev' | 'qa' | 'po' | 'pm' | 'tech_lead' | 'architect' | 'scrum_master' | 'ux' | 'other';
-```
-
----
-
-### GET /factory-allocations
-
-List all factory allocations.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `project_id` | uuid | Filter by project |
-| `professional_id` | uuid | Filter by professional |
+### POST /factoryAllocations
 
 **Request:**
-
 ```http
-GET /api/v1/factory-allocations?project_id=ee0e8400-e29b-41d4-a716-446655440001
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "ff0e8400-e29b-41d4-a716-446655440001",
-      "project_id": "ee0e8400-e29b-41d4-a716-446655440001",
-      "professional_id": "cc0e8400-e29b-41d4-a716-446655440002",
-      "role": "tech_lead",
-      "stack_id": "880e8400-e29b-41d4-a716-446655440003",
-      "start_date": "2024-02-01",
-      "end_date": "2024-08-31",
-      "allocation_percentage": 100,
-      "created_at": "2024-01-25T10:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-### POST /factory-allocations
-
-Create a factory allocation.
-
-**Request:**
-
-```http
-POST /api/v1/factory-allocations
+POST /api/v1/factoryAllocations
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "project_id": "ee0e8400-e29b-41d4-a716-446655440001",
-  "professional_id": "cc0e8400-e29b-41d4-a716-446655440004",
-  "role": "qa",
-  "stack_id": "880e8400-e29b-41d4-a716-446655440007",
-  "start_date": "2024-04-01",
-  "end_date": "2024-08-31",
-  "allocation_percentage": 50
+  "projectId": "uuid",
+  "professionalId": "uuid",
+  "role": "dev",
+  "stackId": "uuid",
+  "startDate": "2024-04-01",
+  "endDate": "2024-12-31",
+  "allocationPercentage": 100
 }
 ```
 
-**Response (201 Created):**
-
+**Response (201):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "ff0e8400-e29b-41d4-a716-446655440010",
-    "project_id": "ee0e8400-e29b-41d4-a716-446655440001",
-    "professional_id": "cc0e8400-e29b-41d4-a716-446655440004",
-    "role": "qa",
-    "stack_id": "880e8400-e29b-41d4-a716-446655440007",
-    "start_date": "2024-04-01",
-    "end_date": "2024-08-31",
-    "allocation_percentage": 50,
-    "created_at": "2024-03-15T21:00:00Z"
-  },
-  "side_effects": {
-    "professional_status_updated": "partial"
+    "id": "uuid",
+    "projectId": "uuid",
+    "professionalId": "uuid",
+    "role": "dev",
+    "stackId": "uuid",
+    "startDate": "2024-04-01",
+    "endDate": "2024-12-31",
+    "allocationPercentage": 100,
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### PUT /factory-allocations/:id
-
-Update a factory allocation.
+### PUT /factoryAllocations/:id
 
 **Request:**
-
 ```http
-PUT /api/v1/factory-allocations/ff0e8400-e29b-41d4-a716-446655440001
+PUT /api/v1/factoryAllocations/uuid
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "role": "architect",
-  "allocation_percentage": 80
+  "role": "techLead",
+  "allocationPercentage": 50,
+  "endDate": "2024-10-31"
 }
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "id": "ff0e8400-e29b-41d4-a716-446655440001",
-    "project_id": "ee0e8400-e29b-41d4-a716-446655440001",
-    "professional_id": "cc0e8400-e29b-41d4-a716-446655440002",
-    "role": "architect",
-    "stack_id": "880e8400-e29b-41d4-a716-446655440003",
-    "start_date": "2024-02-01",
-    "end_date": "2024-08-31",
-    "allocation_percentage": 80,
-    "created_at": "2024-01-25T10:00:00Z"
+    "id": "uuid",
+    "projectId": "uuid",
+    "professionalId": "uuid",
+    "role": "techLead",
+    "stackId": "uuid",
+    "startDate": "2024-04-01",
+    "endDate": "2024-10-31",
+    "allocationPercentage": 50,
+    "createdAt": "2024-03-15T09:00:00Z"
   }
 }
 ```
 
 ---
 
-### DELETE /factory-allocations/:id
-
-Delete a factory allocation.
+### DELETE /factoryAllocations/:id
 
 **Request:**
-
 ```http
-DELETE /api/v1/factory-allocations/ff0e8400-e29b-41d4-a716-446655440010
+DELETE /api/v1/factoryAllocations/uuid
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "message": "Factory allocation deleted successfully"
-  },
-  "side_effects": {
-    "professional_status_updated": "idle"
-  }
+  "data": { "message": "Factory allocation removed successfully" }
 }
 ```
 
 ---
 
-## 12. Dashboard Endpoints
+## 12. Dashboard (Staffing)
 
 ### GET /dashboard/metrics
 
-Get aggregated dashboard metrics.
-
 **Request:**
-
 ```http
 GET /api/v1/dashboard/metrics
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "total_contracts": 45,
-    "active_contracts": 38,
-    "total_clients": 22,
-    "total_professionals": 85,
-    "total_positions": 120,
-    "filled_positions": 98,
-    "open_positions": 22,
-    "monthly_revenue": 850000.00,
-    "revenue_at_risk_30": 75000.00,
-    "revenue_at_risk_60": 150000.00,
-    "revenue_at_risk_90": 225000.00
+    "totalContracts": 25,
+    "activeContracts": 20,
+    "staffingContracts": 15,
+    "fabricaContracts": 5,
+    "totalClients": 12,
+    "totalProfessionals": 100,
+    "totalPositions": 80,
+    "filledPositions": 65,
+    "openPositions": 15
   }
 }
 ```
 
 ---
 
-### GET /dashboard/occupancy-forecast
-
-Get occupancy forecast for a period.
-
-**Query Parameters:**
-
-| Param | Type | Required | Description |
-|-------|------|----------|-------------|
-| `period` | integer | yes | 30, 60, or 90 days |
+### GET /dashboard/occupancyForecast
 
 **Request:**
-
 ```http
-GET /api/v1/dashboard/occupancy-forecast?period=30
+GET /api/v1/dashboard/occupancyForecast
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "period": 30,
-    "current_allocated": 72,
-    "predicted_idle": 8,
-    "occupancy_rate": 88.2,
-    "idle_professionals": [
-      {
-        "professional_id": "cc0e8400-e29b-41d4-a716-446655440001",
-        "professional_name": "João Silva",
-        "stack_name": "Node.js",
-        "current_client_name": "TechCorp Brasil",
-        "current_project_name": "Sistema de Gestão",
-        "allocation_end_date": "2024-04-15",
-        "days_until_idle": 25
-      },
-      {
-        "professional_id": "cc0e8400-e29b-41d4-a716-446655440005",
-        "professional_name": "Pedro Almeida",
-        "stack_name": "React",
-        "current_client_name": "FinTech Solutions",
-        "current_project_name": "Portal Web",
-        "allocation_end_date": "2024-04-10",
-        "days_until_idle": 20
-      }
-    ]
-  }
-}
-```
-
----
-
-### GET /dashboard/expiring-contracts
-
-Get expiring contracts summary.
-
-**Query Parameters:**
-
-| Param | Type | Required | Description |
-|-------|------|----------|-------------|
-| `days` | integer | yes | 30, 60, or 90 days |
-
-**Request:**
-
-```http
-GET /api/v1/dashboard/expiring-contracts?days=60
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "days": 60,
-    "contracts": [
-      {
-        "id": "660e8400-e29b-41d4-a716-446655440005",
-        "contract_number": "CTR-2024-005",
-        "project_name": "Projeto Alpha",
-        "type": "staffing",
-        "client": {
-          "id": "550e8400-e29b-41d4-a716-446655440003",
-          "name": "Cliente ABC"
-        },
-        "end_date": "2024-05-15",
-        "days_until_expiration": 45,
-        "monthly_value": 40000.00,
-        "positions_count": 4,
-        "filled_positions": 3
-      }
-    ],
-    "summary": {
-      "total_contracts": 5,
-      "clients_affected": 4,
-      "professionals_involved": 12,
-      "total_monthly_value": 180000.00
-    }
-  }
-}
-```
-
----
-
-### GET /dashboard/stack-distributions
-
-Get professionals and positions distribution by stack.
-
-**Request:**
-
-```http
-GET /api/v1/dashboard/stack-distributions
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "stack_id": "880e8400-e29b-41d4-a716-446655440001",
-      "stack_name": "Node.js",
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440001",
-      "category_name": "Backend",
-      "professional_count": 15,
-      "position_count": 18,
-      "filled_positions": 14
+      "period": 30,
+      "currentAllocated": 65,
+      "predictedIdle": 5,
+      "occupancyRate": 85.5,
+      "predictedIdleProfessionals": [
+        {
+          "professionalId": "uuid",
+          "professionalName": "João Silva",
+          "stackName": "React",
+          "currentClientName": "TechCorp",
+          "currentProjectName": "Sistema de Gestão",
+          "allocationEndDate": "2024-04-15",
+          "daysUntilIdle": 15
+        }
+      ]
     },
     {
-      "stack_id": "880e8400-e29b-41d4-a716-446655440005",
-      "stack_name": "React",
-      "category_id": "aa0e8400-e29b-41d4-a716-446655440002",
-      "category_name": "Frontend",
-      "professional_count": 20,
-      "position_count": 25,
-      "filled_positions": 22
+      "period": 60,
+      "currentAllocated": 65,
+      "predictedIdle": 12,
+      "occupancyRate": 76.2,
+      "predictedIdleProfessionals": []
+    },
+    {
+      "period": 90,
+      "currentAllocated": 65,
+      "predictedIdle": 18,
+      "occupancyRate": 69.1,
+      "predictedIdleProfessionals": []
     }
   ]
 }
@@ -2834,34 +1730,32 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /dashboard/client-summaries
-
-Get summary for each client.
+### GET /dashboard/allocationTimeline
 
 **Request:**
-
 ```http
-GET /api/v1/dashboard/client-summaries
+GET /api/v1/dashboard/allocationTimeline
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "client": {
-        "id": "550e8400-e29b-41d4-a716-446655440001",
-        "name": "TechCorp Brasil",
-        "cnpj": "12.345.678/0001-90",
-        "contact": "contato@techcorp.com.br"
-      },
-      "active_contracts": 3,
-      "total_positions": 12,
-      "filled_positions": 10,
-      "total_monthly_value": 150000.00
+      "id": "uuid",
+      "professionalId": "uuid",
+      "professionalName": "João Silva",
+      "positionTitle": "Senior Developer",
+      "stackName": "React",
+      "categoryName": "Frontend",
+      "clientName": "TechCorp Brasil",
+      "projectName": "Sistema de Gestão",
+      "contractType": "staffing",
+      "startDate": "2024-01-15",
+      "endDate": "2024-12-31",
+      "allocationPercentage": 100
     }
   ]
 }
@@ -2869,41 +1763,27 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /dashboard/leader-metrics
-
-Get metrics grouped by leader.
+### GET /dashboard/stackDistribution
 
 **Request:**
-
 ```http
-GET /api/v1/dashboard/leader-metrics
+GET /api/v1/dashboard/stackDistribution
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "leader_id": "cc0e8400-e29b-41d4-a716-446655440010",
-      "leader_name": "Maria Santos",
-      "total_professionals": 8,
-      "allocated_professionals": 6,
-      "idle_professionals": 2,
-      "professionals": [
-        {
-          "id": "cc0e8400-e29b-41d4-a716-446655440001",
-          "name": "João Silva",
-          "status": "allocated"
-        },
-        {
-          "id": "cc0e8400-e29b-41d4-a716-446655440005",
-          "name": "Pedro Almeida",
-          "status": "idle"
-        }
-      ]
+      "stackId": "uuid",
+      "stackName": "React",
+      "categoryId": "uuid",
+      "categoryName": "Frontend",
+      "professionalCount": 25,
+      "positionCount": 20,
+      "filledPositions": 18
     }
   ]
 }
@@ -2911,173 +1791,67 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /dashboard/allocation-timeline
-
-Get allocation timeline for Gantt visualization.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `start_date` | date | Filter start date |
-| `end_date` | date | Filter end date |
-| `professional_id` | uuid | Filter by professional |
-| `client_id` | uuid | Filter by client |
-
-**Request:**
-
-```http
-GET /api/v1/dashboard/allocation-timeline?start_date=2024-01-01&end_date=2024-12-31
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "dd0e8400-e29b-41d4-a716-446655440001",
-      "professional_id": "cc0e8400-e29b-41d4-a716-446655440001",
-      "professional_name": "João Silva",
-      "position_title": "Desenvolvedor Full Stack Senior",
-      "stack_name": "Node.js",
-      "category_name": "Backend",
-      "client_name": "TechCorp Brasil",
-      "project_name": "Sistema de Gestão",
-      "contract_type": "staffing",
-      "start_date": "2024-01-15",
-      "end_date": "2024-12-31",
-      "allocation_percentage": 100
-    }
-  ]
-}
-```
-
----
-
-### GET /teams
-
-Get team views organized by contract.
-
-**Request:**
-
-```http
-GET /api/v1/teams
-Authorization: Bearer <token>
-```
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "contract_id": "660e8400-e29b-41d4-a716-446655440001",
-      "contract_number": "CTR-2024-001",
-      "project_name": "Sistema de Gestão",
-      "client_name": "TechCorp Brasil",
-      "contract_type": "staffing",
-      "start_date": "2024-01-01",
-      "end_date": "2024-12-31",
-      "status": "active",
-      "days_until_expiration": 180,
-      "total_positions": 5,
-      "filled_positions": 4,
-      "members": [
-        {
-          "professional_id": "cc0e8400-e29b-41d4-a716-446655440001",
-          "professional_name": "João Silva",
-          "position_title": "Desenvolvedor Full Stack Senior",
-          "stack_name": "Node.js",
-          "category_name": "Backend",
-          "start_date": "2024-01-15",
-          "end_date": "2024-12-31",
-          "allocation_percentage": 100
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-## 13. Factory Dashboard Endpoints
+## 13. Factory Dashboard
 
 ### GET /factory/metrics
 
-Get factory dashboard metrics.
-
 **Request:**
-
 ```http
 GET /api/v1/factory/metrics
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": {
-    "total_projects": 12,
-    "active_projects": 5,
-    "planned_projects": 3,
-    "finished_projects": 3,
-    "paused_projects": 1,
-    "total_factory_professionals": 35,
-    "current_occupancy_rate": 82.5,
-    "occupancy_30_days": 78.0,
-    "occupancy_60_days": 72.5,
-    "occupancy_90_days": 68.0
+    "totalProjects": 10,
+    "activeProjects": 5,
+    "plannedProjects": 3,
+    "finishedProjects": 2,
+    "pausedProjects": 0,
+    "totalFactoryProfessionals": 35,
+    "currentOccupancyRate": 78.5,
+    "occupancy30Days": 72.0,
+    "occupancy60Days": 65.5,
+    "occupancy90Days": 60.0
   }
 }
 ```
 
 ---
 
-### GET /factory/idle-forecast
-
-Get factory idle forecast.
-
-**Query Parameters:**
-
-| Param | Type | Required | Description |
-|-------|------|----------|-------------|
-| `period` | integer | yes | 30, 60, or 90 days |
+### GET /factory/idleForecasts
 
 **Request:**
-
 ```http
-GET /api/v1/factory/idle-forecast?period=30
+GET /api/v1/factory/idleForecasts
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "period": 30,
-    "current_allocated": 28,
-    "predicted_idle": 5,
-    "occupancy_rate": 82.1,
-    "idle_professionals": [
-      {
-        "professional_id": "cc0e8400-e29b-41d4-a716-446655440002",
-        "professional_name": "Maria Santos",
-        "stack_name": "React Native",
-        "current_project_name": "App Mobile Financeiro",
-        "allocation_end_date": "2024-04-20",
-        "days_until_idle": 28
-      }
-    ]
-  }
+  "data": [
+    {
+      "period": 30,
+      "currentAllocated": 28,
+      "predictedIdle": 5,
+      "occupancyRate": 80.0,
+      "idleProfessionals": [
+        {
+          "professionalId": "uuid",
+          "professionalName": "Carlos Dev",
+          "stackName": "React Native",
+          "currentProjectName": "App Mobile",
+          "allocationEndDate": "2024-04-20",
+          "daysUntilIdle": 10
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -3085,54 +1859,38 @@ Authorization: Bearer <token>
 
 ### GET /factory/gantt
 
-Get factory Gantt data.
-
-**Query Parameters:**
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `start_date` | date | Filter start date |
-| `end_date` | date | Filter end date |
-| `status` | string | Filter by project status |
+Gantt chart data for factory projects and professionals.
 
 **Request:**
-
 ```http
-GET /api/v1/factory/gantt?status=in_progress
+GET /api/v1/factory/gantt
 Authorization: Bearer <token>
 ```
 
-**Response (200 OK):**
-
+**Response (200):**
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": "ee0e8400-e29b-41d4-a716-446655440001",
+      "id": "uuid",
       "type": "project",
-      "name": "App Mobile Financeiro",
-      "project_id": null,
-      "project_name": null,
-      "role": null,
-      "stack_name": null,
-      "start_date": "2024-02-01",
-      "end_date": "2024-08-31",
+      "name": "App Mobile Banking",
+      "startDate": "2024-02-01",
+      "endDate": "2024-08-31",
       "progress": 45,
-      "status": "in_progress"
+      "status": "inProgress"
     },
     {
-      "id": "ff0e8400-e29b-41d4-a716-446655440001",
+      "id": "uuid",
       "type": "professional",
-      "name": "Maria Santos",
-      "project_id": "ee0e8400-e29b-41d4-a716-446655440001",
-      "project_name": "App Mobile Financeiro",
-      "role": "tech_lead",
-      "stack_name": "React Native",
-      "start_date": "2024-02-01",
-      "end_date": "2024-08-31",
-      "progress": null,
-      "status": null
+      "name": "Carlos Dev",
+      "projectId": "uuid",
+      "projectName": "App Mobile Banking",
+      "role": "dev",
+      "stackName": "React Native",
+      "startDate": "2024-02-01",
+      "endDate": "2024-08-31"
     }
   ]
 }
@@ -3140,148 +1898,94 @@ Authorization: Bearer <token>
 
 ---
 
-## Field Mapping: Frontend (camelCase) → Backend (snake_case)
-
-| Frontend | Backend |
-|----------|---------|
-| `id` | `id` |
-| `clientId` | `client_id` |
-| `contractId` | `contract_id` |
-| `contractNumber` | `contract_number` |
-| `projectName` | `project_name` |
-| `startDate` | `start_date` |
-| `endDate` | `end_date` |
-| `monthlyValue` | `monthly_value` |
-| `createdAt` | `created_at` |
-| `stackId` | `stack_id` |
-| `categoryId` | `category_id` |
-| `seniorityId` | `seniority_id` |
-| `generalSeniorityId` | `general_seniority_id` |
-| `positionId` | `position_id` |
-| `professionalId` | `professional_id` |
-| `leaderId` | `leader_id` |
-| `allocationPercentage` | `allocation_percentage` |
-| `workMode` | `work_mode` |
-| `totalYearsExperience` | `total_years_experience` |
-| `yearsExperience` | `years_experience` |
-| `stackExperiences` | `stack_experiences` |
-| `progressPercentage` | `progress_percentage` |
-| `daysUntilExpiration` | `days_until_expiration` |
-| `daysUntilIdle` | `days_until_idle` |
-| `daysRemaining` | `days_remaining` |
-| `daysElapsed` | `days_elapsed` |
-| `totalDays` | `total_days` |
-| `calculatedProgress` | `calculated_progress` |
-| `currentAllocated` | `current_allocated` |
-| `predictedIdle` | `predicted_idle` |
-| `occupancyRate` | `occupancy_rate` |
-
----
-
-## Error Codes Reference
-
-| Code | HTTP | Description |
-|------|------|-------------|
-| `UNAUTHORIZED` | 401 | Missing or invalid token |
-| `FORBIDDEN` | 403 | Insufficient permissions |
-| `NOT_FOUND` | 404 | Resource not found |
-| `VALIDATION_ERROR` | 422 | Invalid request body |
-| `CONFLICT` | 409 | Resource conflict (duplicate, dependencies) |
-| `ALLOCATION_CONFLICT` | 422 | Allocation would exceed 100% |
-| `INTERNAL_ERROR` | 500 | Server error |
-
----
-
 ## Business Rules
 
 ### Professional Status Derivation
 
-The `status` field is automatically calculated based on active allocations:
+The professional status is **computed** based on active allocations:
 
-```
-if total_allocation >= 100%: status = 'allocated'
-else if total_allocation > 0%: status = 'partial'
-else: status = 'idle'
-```
-
-Exception: `vacation` and `notice` statuses can be set manually and take precedence.
-
-### Allocation Conflict Validation
-
-When creating an allocation, validate:
-
-```
-current_allocations = sum of active allocation percentages for professional
-if (current_allocations + new_allocation > 100):
-  if override_conflict is true:
-    create allocation with warning
-    log override with justification
-  else:
-    return ALLOCATION_CONFLICT error with details
+```typescript
+function deriveProfessionalStatus(
+  staffingAllocations: Allocation[],
+  factoryAllocations: FactoryAllocation[]
+): ProfessionalStatus {
+  const today = new Date();
+  
+  const activeStaffing = staffingAllocations.filter(a => 
+    new Date(a.startDate) <= today && 
+    (!a.endDate || new Date(a.endDate) >= today)
+  );
+  
+  const activeFactory = factoryAllocations.filter(a => 
+    new Date(a.startDate) <= today && 
+    new Date(a.endDate) >= today
+  );
+  
+  const totalPercentage = 
+    activeStaffing.reduce((sum, a) => sum + a.allocationPercentage, 0) +
+    activeFactory.reduce((sum, a) => sum + a.allocationPercentage, 0);
+  
+  if (totalPercentage >= 100) return "allocated";
+  if (totalPercentage > 0) return "partial";
+  return "idle";
+}
 ```
 
 ### Position Status Sync
 
-- When allocation is created → position.status = 'filled'
-- When allocation is deleted → position.status = 'open'
+When an allocation is created/deleted, the position status should be updated:
+- Create allocation → position.status = "filled"
+- Delete allocation → position.status = "open"
 
-### Cascade Deletes
+### Contract Status Computation
 
-- Delete Client → Error if has contracts
-- Delete Contract → Delete associated positions and allocations
-- Delete Position → Delete associated allocations
-- Delete Professional → Error if has active allocations
-- Delete Stack Category → Error if has stacks
-- Delete Stack → Error if has positions or professional experiences
+```typescript
+function getContractStatus(endDate: string): ContractStatus {
+  const days = differenceInDays(new Date(endDate), new Date());
+  
+  if (days < 0) return "expired";
+  if (days <= 30) return "expiring30";
+  if (days <= 60) return "expiring60";
+  if (days <= 90) return "expiring90";
+  return "active";
+}
+```
+
+### Allocation Conflict Validation
+
+Before creating an allocation, validate that the professional's total allocation doesn't exceed 100%:
+
+```typescript
+function validateAllocation(
+  professionalId: string,
+  newAllocation: { startDate: string; endDate: string; allocationPercentage: number },
+  existingAllocations: Allocation[]
+): { valid: boolean; conflicts: Allocation[]; totalPercentage: number } {
+  const overlapping = existingAllocations.filter(a => 
+    a.professionalId === professionalId &&
+    datesOverlap(a.startDate, a.endDate, newAllocation.startDate, newAllocation.endDate)
+  );
+  
+  const currentTotal = overlapping.reduce((sum, a) => sum + a.allocationPercentage, 0);
+  const newTotal = currentTotal + newAllocation.allocationPercentage;
+  
+  return {
+    valid: newTotal <= 100,
+    conflicts: overlapping,
+    totalPercentage: newTotal
+  };
+}
+```
 
 ---
 
-## Suggested Database Indexes
+## Error Codes
 
-```sql
--- Clients
-CREATE INDEX idx_clients_name ON clients(name);
-
--- Contracts
-CREATE INDEX idx_contracts_client_id ON contracts(client_id);
-CREATE INDEX idx_contracts_end_date ON contracts(end_date);
-CREATE INDEX idx_contracts_type ON contracts(type);
-
--- Positions
-CREATE INDEX idx_positions_contract_id ON positions(contract_id);
-CREATE INDEX idx_positions_status ON positions(status);
-CREATE INDEX idx_positions_stack_id ON positions(stack_id);
-
--- Professionals
-CREATE INDEX idx_professionals_leader_id ON professionals(leader_id);
-CREATE INDEX idx_professionals_status ON professionals(status);
-CREATE INDEX idx_professionals_work_mode ON professionals(work_mode);
-CREATE INDEX idx_professionals_general_seniority_id ON professionals(general_seniority_id);
-
--- Professional Stack Experiences
-CREATE INDEX idx_prof_stack_exp_professional_id ON professional_stack_experiences(professional_id);
-CREATE INDEX idx_prof_stack_exp_stack_id ON professional_stack_experiences(stack_id);
-
--- Allocations
-CREATE INDEX idx_allocations_professional_id ON allocations(professional_id);
-CREATE INDEX idx_allocations_position_id ON allocations(position_id);
-CREATE INDEX idx_allocations_end_date ON allocations(end_date);
-
--- Factory Projects
-CREATE INDEX idx_factory_projects_client_id ON factory_projects(client_id);
-CREATE INDEX idx_factory_projects_status ON factory_projects(status);
-
--- Factory Allocations
-CREATE INDEX idx_factory_alloc_project_id ON factory_allocations(project_id);
-CREATE INDEX idx_factory_alloc_professional_id ON factory_allocations(professional_id);
-CREATE INDEX idx_factory_alloc_end_date ON factory_allocations(end_date);
-
--- Stacks
-CREATE INDEX idx_stacks_category_id ON stacks(category_id);
-
--- Seniorities
-CREATE INDEX idx_seniorities_category_id ON seniorities(category_id);
-
--- General Seniorities
-CREATE INDEX idx_general_seniorities_level ON general_seniorities(level);
-```
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| VALIDATION_ERROR | 422 | Request validation failed |
+| NOT_FOUND | 404 | Resource not found |
+| CONFLICT | 409 | Operation conflicts with existing data |
+| ALLOCATION_CONFLICT | 409 | Allocation exceeds 100% capacity |
+| UNAUTHORIZED | 401 | Invalid or missing authentication |
+| FORBIDDEN | 403 | Insufficient permissions |
