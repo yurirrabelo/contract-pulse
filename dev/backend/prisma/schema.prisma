@@ -1,0 +1,291 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ContractType {
+  STAFFING
+  FACTORY
+}
+
+enum PositionStatus {
+  OPEN
+  FILLED
+}
+
+enum ProfessionalStatus {
+  ALLOCATED
+  IDLE
+  PARTIAL
+  VACATION
+  NOTICE
+}
+
+enum ProfessionalWorkMode {
+  ALLOCATION
+  FACTORY
+  BOTH
+}
+
+enum FactoryProjectStatus {
+  PLANNED
+  IN_PROGRESS
+  FINISHED
+  PAUSED
+}
+
+enum FactoryRole {
+  DEV
+  QA
+  PO
+  PM
+  TECH_LEAD
+  ARCHITECT
+  UX
+  OTHER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String   @unique
+  contact   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contracts       Contract[]
+  factoryProjects FactoryProject[]
+
+  @@index([name])
+  @@index([cnpj])
+  @@map("clients")
+}
+
+model Contract {
+  id             String       @id @default(uuid())
+  contractNumber String       @unique @map("contract_number")
+  projectName    String?      @map("project_name")
+  type           ContractType
+  startDate      DateTime     @map("start_date") @db.Date
+  endDate        DateTime     @map("end_date") @db.Date
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String? @map("client_id")
+
+  positions Position[]
+
+  @@index([clientId])
+  @@index([type])
+  @@index([endDate])
+  @@index([startDate, endDate])
+  @@map("contracts")
+}
+
+model StackCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  stacks      Stack[]
+  seniorities Seniority[]
+
+  @@map("stack_categories")
+}
+
+model Stack {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  category   StackCategory @relation(fields: [categoryId], references: [id])
+  categoryId String        @map("category_id")
+
+  positions          Position[]
+  stackExperiences   ProfessionalStackExperience[]
+  factoryAllocations FactoryAllocation[]
+
+  @@unique([name, categoryId])
+  @@index([categoryId])
+  @@map("stacks")
+}
+
+model Seniority {
+  id          String   @id @default(uuid())
+  name        String
+  level       Int
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  category   StackCategory @relation(fields: [categoryId], references: [id])
+  categoryId String        @map("category_id")
+
+  positions Position[]
+
+  @@unique([name, categoryId])
+  @@unique([level, categoryId])
+  @@index([categoryId])
+  @@map("seniorities")
+}
+
+model GeneralSeniority {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  level       Int      @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  professionals Professional[]
+
+  @@index([level])
+  @@map("general_seniorities")
+}
+
+model Position {
+  id                   String         @id @default(uuid())
+  title                String
+  status               PositionStatus @default(OPEN)
+  startDate            DateTime       @map("start_date") @db.Date
+  endDate              DateTime       @map("end_date") @db.Date
+  allocationPercentage Int            @map("allocation_percentage")
+  createdAt            DateTime       @default(now()) @map("created_at")
+
+  contract   Contract @relation(fields: [contractId], references: [id])
+  contractId String   @map("contract_id")
+
+  stack   Stack  @relation(fields: [stackId], references: [id])
+  stackId String @map("stack_id")
+
+  seniority   Seniority? @relation(fields: [seniorityId], references: [id])
+  seniorityId String?    @map("seniority_id")
+
+  allocations Allocation[]
+
+  @@index([contractId])
+  @@index([stackId])
+  @@index([seniorityId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("positions")
+}
+
+model Professional {
+  id                 String               @id @default(uuid())
+  name               String
+  email              String?              @unique
+  generalSeniorityId String?              @map("general_seniority_id")
+  status             ProfessionalStatus   @default(IDLE)
+  workMode           ProfessionalWorkMode @map("work_mode")
+  leaderId           String?              @map("leader_id")
+  createdAt          DateTime             @default(now()) @map("created_at")
+
+  generalSeniority   GeneralSeniority?             @relation(fields: [generalSeniorityId], references: [id])
+  leader             Professional?                 @relation("LeaderSubordinates", fields: [leaderId], references: [id])
+  subordinates       Professional[]                @relation("LeaderSubordinates")
+  stackExperiences   ProfessionalStackExperience[]
+  allocations        Allocation[]
+  factoryAllocations FactoryAllocation[]
+
+  @@index([generalSeniorityId])
+  @@index([leaderId])
+  @@index([status])
+  @@index([workMode])
+  @@index([name])
+  @@map("professionals")
+}
+
+model ProfessionalStackExperience {
+  id             String @id @default(uuid())
+  professionalId String @map("professional_id")
+  stackId        String @map("stack_id")
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  stack        Stack        @relation(fields: [stackId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalId, stackId])
+  @@index([stackId])
+  @@map("professional_stack_experiences")
+}
+
+model Allocation {
+  id                   String    @id @default(uuid())
+  professionalId       String    @map("professional_id")
+  positionId           String    @map("position_id")
+  startDate            DateTime  @map("start_date") @db.Date
+  endDate              DateTime? @map("end_date") @db.Date
+  allocationPercentage Int       @map("allocation_percentage")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  position     Position     @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId])
+  @@index([positionId])
+  @@index([startDate, endDate])
+  @@index([professionalId, startDate, endDate])
+  @@map("allocations")
+}
+
+model FactoryProject {
+  id                 String               @id @default(uuid())
+  name               String
+  clientId           String?              @map("client_id")
+  description        String
+  startDate          DateTime             @map("start_date") @db.Date
+  endDate            DateTime             @map("end_date") @db.Date
+  status             FactoryProjectStatus @default(PLANNED)
+  progressPercentage Int                  @default(0) @map("progress_percentage")
+  createdAt          DateTime             @default(now()) @map("created_at")
+
+  client      Client?             @relation(fields: [clientId], references: [id])
+  allocations FactoryAllocation[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("factory_projects")
+}
+
+model FactoryAllocation {
+  id                   String      @id @default(uuid())
+  projectId            String      @map("project_id")
+  professionalId       String      @map("professional_id")
+  role                 FactoryRole
+  stackId              String      @map("stack_id")
+  startDate            DateTime    @map("start_date") @db.Date
+  endDate              DateTime    @map("end_date") @db.Date
+  allocationPercentage Int         @map("allocation_percentage")
+  createdAt            DateTime    @default(now()) @map("created_at")
+
+  project      FactoryProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  professional Professional   @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  stack        Stack          @relation(fields: [stackId], references: [id])
+
+  @@index([projectId])
+  @@index([professionalId])
+  @@index([stackId])
+  @@index([startDate, endDate])
+  @@index([professionalId, startDate, endDate])
+  @@map("factory_allocations")
+}
