@@ -1,23 +1,23 @@
-import { useData } from '@/contexts/DataContext';
-import { MetricCard } from '@/components/dashboard/MetricCard';
-import { ExpirationAlertCard } from '@/components/dashboard/ExpirationAlertCard';
-import { RevenueChart } from '@/components/dashboard/RevenueChart';
-import { StackDistributionChart } from '@/components/dashboard/StackDistributionChart';
-import { OccupancyRateCard } from '@/components/dashboard/OccupancyRateCard';
-import { ClientOverviewCard } from '@/components/dashboard/ClientOverviewCard';
-import { AllocationTimeline } from '@/components/dashboard/AllocationTimeline';
-import { OccupancyForecastCard } from '@/components/dashboard/OccupancyForecastCard';
-import { formatCurrency } from '@/lib/storage';
-import { 
-  FileText, 
-  Users, 
-  Building2, 
+import { useData } from "@/contexts/DataContext";
+import { MetricCard } from "@/components/dashboard/MetricCard";
+import { ExpirationAlertCard } from "@/components/dashboard/ExpirationAlertCard";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
+import { StackDistributionChart } from "@/components/dashboard/StackDistributionChart";
+import { OccupancyRateCard } from "@/components/dashboard/OccupancyRateCard";
+import { ClientOverviewCard } from "@/components/dashboard/ClientOverviewCard";
+import { AllocationTimeline } from "@/components/dashboard/AllocationTimeline";
+import { OccupancyForecastCard } from "@/components/dashboard/OccupancyForecastCard";
+import { formatCurrency } from "@/lib/storage";
+import {
+  FileText,
+  Users,
+  Building2,
   Briefcase,
   TrendingUp,
   AlertCircle,
   Factory,
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
   const {
@@ -31,8 +31,10 @@ export default function Dashboard() {
     professionals,
   } = useData();
 
-  const staffingContracts = contracts.filter(c => c.type === 'staffing').length;
-  const fabricaContracts = contracts.filter(c => c.type === 'fabrica').length;
+  const staffingContracts = contracts.filter(
+    (c) => c.type === "staffing",
+  ).length;
+  const fabricaContracts = contracts.filter((c) => c.type === "fabrica").length;
 
   return (
     <div className="space-y-8">
@@ -114,9 +116,9 @@ export default function Dashboard() {
 
       {/* Occupancy Forecast - NEW */}
       <div className="grid md:grid-cols-2 gap-6">
-        <OccupancyForecastCard 
-          forecasts={occupancyForecasts} 
-          totalProfessionals={professionals.length} 
+        <OccupancyForecastCard
+          forecasts={occupancyForecasts}
+          totalProfessionals={professionals.length}
         />
         <OccupancyRateCard
           totalPositions={dashboardMetrics.totalPositions}
@@ -125,9 +127,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Allocation Timeline - NEW */}
-      <AllocationTimeline allocations={allocationTimeline} />
-
       {/* Analytics Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Stack Distribution */}
@@ -135,6 +134,9 @@ export default function Dashboard() {
           <StackDistributionChart distributions={stackDistributions} />
         </div>
       </div>
+
+      {/* Allocation Timeline - NEW */}
+      <AllocationTimeline allocations={allocationTimeline} />
 
       {/* Client Overview */}
       {/* <ClientOverviewCard clientSummaries={clientSummaries} /> */}
