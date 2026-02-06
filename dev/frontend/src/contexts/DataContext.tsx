@@ -23,8 +23,13 @@ import {
   FactoryIdleForecast,
   FactoryIdleProfessional,
   FactoryGanttEntry,
+  StackCategory,
+  Seniority,
+  LeaderMetrics,
+  GeneralSeniority,
 } from '@/types';
 import { saveToStorage, loadFromStorage, generateId, getContractStatus, getDaysUntil } from '@/lib/storage';
+import { getAllocationEffectiveEndDate, isAllocationActive } from '@/lib/allocation';
 import {
   seedClients,
   seedContracts,
@@ -34,6 +39,9 @@ import {
   seedAllocations,
   seedFactoryProjects,
   seedFactoryAllocations,
+  seedStackCategories,
+  seedSeniorities,
+  seedGeneralSeniorities,
 } from '@/data/seedData';
 
 interface DataContextType {
@@ -42,10 +50,17 @@ interface DataContextType {
   contracts: Contract[];
   stacks: Stack[];
   positions: Position[];
+  /**
+   * Professionals with status automatically derived from allocations.
+   * This list already has calculated status (idle / partial / allocated).
+   */
   professionals: Professional[];
   allocations: Allocation[];
   factoryProjects: FactoryProject[];
   factoryAllocations: FactoryAllocation[];
+  stackCategories: StackCategory[];
+  seniorities: Seniority[];
+  generalSeniorities: GeneralSeniority[];
 
   // Computed
   contractsWithDetails: ContractWithDetails[];
@@ -56,6 +71,7 @@ interface DataContextType {
   allocationTimeline: AllocationTimelineEntry[];
   teamViews: TeamView[];
   occupancyForecasts: OccupancyForecast[];
+  leaderMetrics: LeaderMetrics[];
   
   // Factory computed
   factoryProjectsWithDetails: FactoryProjectWithDetails[];
@@ -88,6 +104,21 @@ interface DataContextType {
   updateAllocation: (id: string, allocation: Partial<Allocation>) => void;
   deleteAllocation: (id: string) => void;
 
+  // Stack Category CRUD
+  addStackCategory: (category: Omit<StackCategory, 'id' | 'createdAt'>) => StackCategory;
+  updateStackCategory: (id: string, category: Partial<StackCategory>) => void;
+  deleteStackCategory: (id: string) => void;
+
+  // Seniority CRUD
+  addSeniority: (seniority: Omit<Seniority, 'id' | 'createdAt'>) => Seniority;
+  updateSeniority: (id: string, seniority: Partial<Seniority>) => void;
+  deleteSeniority: (id: string) => void;
+
+  // General Seniority CRUD
+  addGeneralSeniority: (seniority: Omit<GeneralSeniority, 'id' | 'createdAt'>) => GeneralSeniority;
+  updateGeneralSeniority: (id: string, seniority: Partial<GeneralSeniority>) => void;
+  deleteGeneralSeniority: (id: string) => void;
+
   // Factory CRUD
   addFactoryProject: (project: Omit<FactoryProject, 'id' | 'createdAt'>) => FactoryProject;
   updateFactoryProject: (id: string, project: Partial<FactoryProject>) => void;
@@ -106,6 +137,10 @@ interface DataContextType {
   getPositionsByContract: (contractId: string) => Position[];
   getAllocationsByPosition: (positionId: string) => Allocation[];
   getProfessionalAllocation: (professionalId: string) => Allocation | undefined;
+  getStackCategoryById: (id: string) => StackCategory | undefined;
+  getSeniorityById: (id: string) => Seniority | undefined;
+  getGeneralSeniorityById: (id: string) => GeneralSeniority | undefined;
+  getProfessionalPrimaryStack: (professional: Professional) => Stack | undefined;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -119,6 +154,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [factoryProjects, setFactoryProjects] = useState<FactoryProject[]>([]);
   const [factoryAllocations, setFactoryAllocations] = useState<FactoryAllocation[]>([]);
+  const [stackCategories, setStackCategories] = useState<StackCategory[]>([]);
+  const [seniorities, setSeniorities] = useState<Seniority[]>([]);
+  const [generalSeniorities, setGeneralSeniorities] = useState<GeneralSeniority[]>([]);
+
+  // Prevent saving empty initial state before hydration.
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Load data from storage on mount
   useEffect(() => {
@@ -130,27 +171,121 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setAllocations(loadFromStorage('allocations', seedAllocations));
     setFactoryProjects(loadFromStorage('factoryProjects', seedFactoryProjects));
     setFactoryAllocations(loadFromStorage('factoryAllocations', seedFactoryAllocations));
+    setStackCategories(loadFromStorage('stackCategories', seedStackCategories));
+    setSeniorities(loadFromStorage('seniorities', seedSeniorities));
+    setGeneralSeniorities(loadFromStorage('generalSeniorities', seedGeneralSeniorities));
+
+    setIsHydrated(true);
   }, []);
 
   // Persist to storage on changes
-  useEffect(() => { if (clients.length) saveToStorage('clients', clients); }, [clients]);
-  useEffect(() => { if (contracts.length) saveToStorage('contracts', contracts); }, [contracts]);
-  useEffect(() => { if (stacks.length) saveToStorage('stacks', stacks); }, [stacks]);
-  useEffect(() => { if (positions.length) saveToStorage('positions', positions); }, [positions]);
-  useEffect(() => { if (professionals.length) saveToStorage('professionals', professionals); }, [professionals]);
-  useEffect(() => { if (allocations.length) saveToStorage('allocations', allocations); }, [allocations]);
-  useEffect(() => { if (factoryProjects.length) saveToStorage('factoryProjects', factoryProjects); }, [factoryProjects]);
-  useEffect(() => { if (factoryAllocations.length) saveToStorage('factoryAllocations', factoryAllocations); }, [factoryAllocations]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('clients', clients); }, [clients, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('contracts', contracts); }, [contracts, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('stacks', stacks); }, [stacks, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('positions', positions); }, [positions, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('professionals', professionals); }, [professionals, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('allocations', allocations); }, [allocations, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('factoryProjects', factoryProjects); }, [factoryProjects, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('factoryAllocations', factoryAllocations); }, [factoryAllocations, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('stackCategories', stackCategories); }, [stackCategories, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('seniorities', seniorities); }, [seniorities, isHydrated]);
+  useEffect(() => { if (!isHydrated) return; saveToStorage('generalSeniorities', generalSeniorities); }, [generalSeniorities, isHydrated]);
 
   // Helpers
   const getClientById = useCallback((id: string) => clients.find(c => c.id === id), [clients]);
   const getContractById = useCallback((id: string) => contracts.find(c => c.id === id), [contracts]);
   const getStackById = useCallback((id: string) => stacks.find(s => s.id === id), [stacks]);
   const getPositionById = useCallback((id: string) => positions.find(p => p.id === id), [positions]);
-  const getProfessionalById = useCallback((id: string) => professionals.find(p => p.id === id), [professionals]);
+  // Raw helper to lookup before derivedProfessionals is computed; usages must be careful
+  const getRawProfessionalById = useCallback((id: string) => professionals.find(p => p.id === id), [professionals]);
   const getPositionsByContract = useCallback((contractId: string) => positions.filter(p => p.contractId === contractId), [positions]);
   const getAllocationsByPosition = useCallback((positionId: string) => allocations.filter(a => a.positionId === positionId), [allocations]);
-  const getProfessionalAllocation = useCallback((professionalId: string) => allocations.find(a => a.professionalId === professionalId && !a.endDate), [allocations]);
+
+  const getAllocationEndDate = useCallback((allocation: Allocation): string | null => {
+    const position = getPositionById(allocation.positionId);
+    return getAllocationEffectiveEndDate(allocation, position ?? null);
+  }, [getPositionById]);
+
+  const isAllocationActiveForPosition = useCallback((allocation: Allocation, at: Date = new Date()): boolean => {
+    const position = getPositionById(allocation.positionId);
+    return isAllocationActive(allocation, { position: position ?? null, at });
+  }, [getPositionById]);
+
+  const getProfessionalAllocation = useCallback((professionalId: string) => {
+    const activeAllocations = allocations
+      .filter(a => a.professionalId === professionalId)
+      .filter(a => isAllocationActiveForPosition(a));
+
+    if (!activeAllocations.length) return undefined;
+
+    activeAllocations.sort((a, b) => {
+      const aEnd = getAllocationEndDate(a);
+      const bEnd = getAllocationEndDate(b);
+      const aTs = aEnd ? new Date(aEnd).getTime() : 0;
+      const bTs = bEnd ? new Date(bEnd).getTime() : 0;
+      return bTs - aTs;
+    });
+
+    return activeAllocations[0];
+  }, [allocations, getAllocationEndDate, isAllocationActiveForPosition]);
+  const getStackCategoryById = useCallback((id: string) => stackCategories.find(c => c.id === id), [stackCategories]);
+  const getSeniorityById = useCallback((id: string) => seniorities.find(s => s.id === id), [seniorities]);
+  const getGeneralSeniorityById = useCallback((id: string) => generalSeniorities.find(s => s.id === id), [generalSeniorities]);
+  
+  // Get professional's primary stack (first in stackExperiences with highest seniority)
+  const getProfessionalPrimaryStack = useCallback((professional: Professional) => {
+    if (!professional.stackExperiences?.length) return undefined;
+    const primaryExp = professional.stackExperiences[0];
+    return stacks.find(s => s.id === primaryExp.stackId);
+  }, [stacks]);
+
+  // ============================================
+  // DERIVED PROFESSIONALS (status auto-calculated)
+  // ============================================
+
+  const derivedProfessionals = useMemo<Professional[]>(() => {
+    const today = new Date();
+
+    return professionals.map((prof) => {
+      // Staffing allocations active today
+      const activeStaffingAllocations = allocations.filter(
+        (a) => a.professionalId === prof.id && isAllocationActiveForPosition(a, today)
+      );
+      const staffingSum = activeStaffingAllocations.reduce(
+        (sum, a) => sum + a.allocationPercentage,
+        0
+      );
+
+      // Factory allocations active today
+      const activeFactoryAllocations = factoryAllocations.filter((fa) => {
+        const start = new Date(fa.startDate);
+        const end = new Date(fa.endDate);
+        return fa.professionalId === prof.id && start <= today && end >= today;
+      });
+      const factorySum = activeFactoryAllocations.reduce(
+        (sum, a) => sum + a.allocationPercentage,
+        0
+      );
+
+      const totalAllocation = staffingSum + factorySum;
+
+      let derivedStatus: Professional['status'];
+      if (totalAllocation >= 100) {
+        derivedStatus = 'allocated';
+      } else if (totalAllocation > 0) {
+        derivedStatus = 'partial';
+      } else {
+        derivedStatus = 'idle';
+      }
+
+      // Allow user to override for special statuses (vacation, notice)
+      if (prof.status === 'vacation' || prof.status === 'notice') {
+        derivedStatus = prof.status;
+      }
+
+      return { ...prof, status: derivedStatus };
+    });
+  }, [professionals, allocations, factoryAllocations, isAllocationActiveForPosition]);
 
   // Computed: Contracts with details
   const contractsWithDetails = useMemo<ContractWithDetails[]>(() => {
@@ -220,7 +355,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const positionIds = contractsInGroup.flatMap(c => c.positions.map(p => p.id));
       const professionalIds = new Set(
         allocations
-          .filter(a => positionIds.includes(a.positionId) && !a.endDate)
+          .filter(a => positionIds.includes(a.positionId) && isAllocationActiveForPosition(a))
           .map(a => a.professionalId)
       );
 
@@ -234,7 +369,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return groups;
-  }, [contractsWithDetails, allocations]);
+  }, [contractsWithDetails, allocations, isAllocationActiveForPosition]);
 
   // Computed: Stack distributions
   const stackDistributions = useMemo<StackDistribution[]>(() => {
@@ -242,19 +377,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const stackPositions = positions.filter(p => p.stackId === stack.id);
       const filledPositions = stackPositions.filter(p => p.status === 'filled');
       const professionalCount = professionals.filter(
-        p => p.primaryStackId === stack.id || p.secondaryStackIds.includes(stack.id)
+        p => p.stackExperiences?.some(exp => exp.stackId === stack.id)
       ).length;
+      const category = getStackCategoryById(stack.categoryId);
 
       return {
         stackId: stack.id,
         stackName: stack.name,
-        category: stack.category,
+        categoryId: stack.categoryId,
+        categoryName: category?.name || 'Sem categoria',
         professionalCount,
         positionCount: stackPositions.length,
         filledPositions: filledPositions.length,
       };
     });
-  }, [stacks, positions, professionals]);
+  }, [stacks, positions, professionals, getStackCategoryById]);
 
   // Computed: Client summaries
   const clientSummaries = useMemo<ClientSummary[]>(() => {
@@ -279,11 +416,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Computed: Allocation Timeline
   const allocationTimeline = useMemo<AllocationTimelineEntry[]>(() => {
     return allocations.map(allocation => {
-      const professional = getProfessionalById(allocation.professionalId);
+      const professional = getRawProfessionalById(allocation.professionalId);
       const position = getPositionById(allocation.positionId);
       const contract = position ? getContractById(position.contractId) : null;
       const client = contract ? getClientById(contract.clientId) : null;
       const stack = position ? getStackById(position.stackId) : null;
+      const category = stack ? getStackCategoryById(stack.categoryId) : null;
 
       if (!professional || !position || !contract || !client || !stack) return null;
 
@@ -293,7 +431,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         professionalName: professional.name,
         positionTitle: position.title,
         stackName: stack.name,
-        stackCategory: stack.category,
+        categoryName: category?.name || 'Sem categoria',
         clientName: client.name,
         projectName: contract.projectName || contract.contractNumber,
         contractType: contract.type,
@@ -302,7 +440,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         allocationPercentage: allocation.allocationPercentage,
       };
     }).filter(Boolean) as AllocationTimelineEntry[];
-  }, [allocations, getProfessionalById, getPositionById, getContractById, getClientById, getStackById]);
+  }, [allocations, getRawProfessionalById, getPositionById, getContractById, getClientById, getStackById, getStackCategoryById]);
 
   // Computed: Team Views
   const teamViews = useMemo<TeamView[]>(() => {
@@ -313,9 +451,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       const members = contractAllocations.map(allocation => {
-        const professional = getProfessionalById(allocation.professionalId);
+        const professional = getRawProfessionalById(allocation.professionalId);
         const position = getPositionById(allocation.positionId);
         const stack = position ? getStackById(position.stackId) : null;
+        const category = stack ? getStackCategoryById(stack.categoryId) : null;
 
         if (!professional || !position || !stack) return null;
 
@@ -324,7 +463,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           professionalName: professional.name,
           positionTitle: position.title,
           stackName: stack.name,
-          stackCategory: stack.category,
+          categoryName: category?.name || 'Sem categoria',
           startDate: allocation.startDate,
           endDate: allocation.endDate || position.endDate,
           allocationPercentage: allocation.allocationPercentage,
@@ -346,7 +485,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         filledPositions: contract.positions.filter(p => p.status === 'filled').length,
       };
     });
-  }, [contractsWithDetails, allocations, getProfessionalById, getPositionById, getStackById]);
+  }, [contractsWithDetails, allocations, getRawProfessionalById, getPositionById, getStackById, getStackCategoryById]);
 
   // Computed: Occupancy Forecasts
   const occupancyForecasts = useMemo<OccupancyForecast[]>(() => {
@@ -369,11 +508,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       const predictedIdleProfessionals: ProfessionalIdleForecast[] = endingAllocations.map(a => {
-        const professional = getProfessionalById(a.professionalId);
+        const professional = getRawProfessionalById(a.professionalId);
         const position = getPositionById(a.positionId);
         const contract = position ? getContractById(position.contractId) : null;
         const client = contract ? getClientById(contract.clientId) : null;
-        const stack = professional ? getStackById(professional.primaryStackId) : null;
+        const primaryStack = professional ? getProfessionalPrimaryStack(professional) : null;
         
         const endDate = a.endDate || (position?.endDate || '');
         const daysUntilIdle = Math.ceil((new Date(endDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -381,7 +520,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return {
           professionalId: a.professionalId,
           professionalName: professional?.name || '',
-          stackName: stack?.name || '',
+          stackName: primaryStack?.name || '',
           currentClientName: client?.name || '',
           currentProjectName: contract?.projectName || contract?.contractNumber || '',
           allocationEndDate: endDate,
@@ -419,7 +558,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return forecasts;
-  }, [allocations, professionals, getProfessionalById, getPositionById, getContractById, getClientById, getStackById]);
+  }, [allocations, professionals, getRawProfessionalById, getPositionById, getContractById, getClientById, getProfessionalPrimaryStack]);
+
+  // Computed: Leader Metrics
+  const leaderMetrics = useMemo<LeaderMetrics[]>(() => {
+    const leaders = professionals.filter(p => 
+      professionals.some(other => other.leaderId === p.id)
+    );
+
+    return leaders.map(leader => {
+      const teamMembers = professionals.filter(p => p.leaderId === leader.id);
+      const allocatedCount = teamMembers.filter(p => p.status === 'allocated').length;
+      const idleCount = teamMembers.filter(p => p.status === 'idle').length;
+
+      return {
+        leaderId: leader.id,
+        leaderName: leader.name,
+        totalProfessionals: teamMembers.length,
+        allocatedProfessionals: allocatedCount,
+        idleProfessionals: idleCount,
+        professionals: teamMembers,
+      };
+    });
+  }, [professionals]);
 
   // ============================================
   // FACTORY COMPUTED VALUES
@@ -434,7 +595,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const projectAllocations = factoryAllocations
         .filter(a => a.projectId === project.id)
         .map(a => {
-          const professional = getProfessionalById(a.professionalId);
+          const professional = getRawProfessionalById(a.professionalId);
           const stack = getStackById(a.stackId);
           if (!professional || !stack) return null;
           return { ...a, professional, stack } as FactoryAllocationWithDetails;
@@ -459,7 +620,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         calculatedProgress,
       };
     });
-  }, [factoryProjects, factoryAllocations, getClientById, getProfessionalById, getStackById]);
+  }, [factoryProjects, factoryAllocations, getClientById, getRawProfessionalById, getStackById]);
 
   // Factory Dashboard Metrics
   const factoryMetrics = useMemo<FactoryDashboardMetrics>(() => {
@@ -543,16 +704,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       const idleProfessionals: FactoryIdleProfessional[] = endingAllocations.map(a => {
-        const professional = getProfessionalById(a.professionalId);
+        const professional = getRawProfessionalById(a.professionalId);
         const project = factoryProjects.find(p => p.id === a.projectId);
-        const stack = professional ? getStackById(professional.primaryStackId) : null;
+        const primaryStack = professional ? getProfessionalPrimaryStack(professional) : null;
         
         const daysUntilIdle = Math.ceil((new Date(a.endDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
         return {
           professionalId: a.professionalId,
           professionalName: professional?.name || '',
-          stackName: stack?.name || '',
+          stackName: primaryStack?.name || '',
           currentProjectName: project?.name || '',
           allocationEndDate: a.endDate,
           daysUntilIdle,
@@ -592,7 +753,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
 
     return forecasts;
-  }, [factoryAllocations, factoryProjects, professionals, getProfessionalById, getStackById]);
+  }, [factoryAllocations, factoryProjects, professionals, getRawProfessionalById, getProfessionalPrimaryStack]);
 
   // Factory Gantt Data
   const factoryGanttData = useMemo<FactoryGanttEntry[]>(() => {
@@ -741,6 +902,63 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setAllocations(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  // Stack Category CRUD
+  const addStackCategory = useCallback((category: Omit<StackCategory, 'id' | 'createdAt'>) => {
+    const newCategory: StackCategory = {
+      ...category,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setStackCategories(prev => [...prev, newCategory]);
+    return newCategory;
+  }, []);
+
+  const updateStackCategory = useCallback((id: string, updates: Partial<StackCategory>) => {
+    setStackCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  }, []);
+
+  const deleteStackCategory = useCallback((id: string) => {
+    setStackCategories(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  // Seniority CRUD
+  const addSeniority = useCallback((seniority: Omit<Seniority, 'id' | 'createdAt'>) => {
+    const newSeniority: Seniority = {
+      ...seniority,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setSeniorities(prev => [...prev, newSeniority]);
+    return newSeniority;
+  }, []);
+
+  const updateSeniority = useCallback((id: string, updates: Partial<Seniority>) => {
+    setSeniorities(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
+  const deleteSeniority = useCallback((id: string) => {
+    setSeniorities(prev => prev.filter(s => s.id !== id));
+  }, []);
+
+  // General Seniority CRUD
+  const addGeneralSeniority = useCallback((seniority: Omit<GeneralSeniority, 'id' | 'createdAt'>) => {
+    const newSeniority: GeneralSeniority = {
+      ...seniority,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setGeneralSeniorities(prev => [...prev, newSeniority]);
+    return newSeniority;
+  }, []);
+
+  const updateGeneralSeniority = useCallback((id: string, updates: Partial<GeneralSeniority>) => {
+    setGeneralSeniorities(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
+  const deleteGeneralSeniority = useCallback((id: string) => {
+    setGeneralSeniorities(prev => prev.filter(s => s.id !== id));
+  }, []);
+
   // Factory CRUD
   const addFactoryProject = useCallback((project: Omit<FactoryProject, 'id' | 'createdAt'>) => {
     const newProject: FactoryProject = {
@@ -780,6 +998,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setFactoryAllocations(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  // getProfessionalById uses derived so we always read correct status
+  const getProfessionalById = useCallback((id: string) => derivedProfessionals.find(p => p.id === id), [derivedProfessionals]);
+
   return (
     <DataContext.Provider
       value={{
@@ -787,10 +1008,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         contracts,
         stacks,
         positions,
-        professionals,
+        professionals: derivedProfessionals,
         allocations,
         factoryProjects,
         factoryAllocations,
+        stackCategories,
+        seniorities,
+        generalSeniorities,
         contractsWithDetails,
         dashboardMetrics,
         expiringContractsGroups,
@@ -799,6 +1023,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         allocationTimeline,
         teamViews,
         occupancyForecasts,
+        leaderMetrics,
         factoryProjectsWithDetails,
         factoryMetrics,
         factoryIdleForecasts,
@@ -821,6 +1046,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         addAllocation,
         updateAllocation,
         deleteAllocation,
+        addStackCategory,
+        updateStackCategory,
+        deleteStackCategory,
+        addSeniority,
+        updateSeniority,
+        deleteSeniority,
+        addGeneralSeniority,
+        updateGeneralSeniority,
+        deleteGeneralSeniority,
         addFactoryProject,
         updateFactoryProject,
         deleteFactoryProject,
@@ -835,6 +1069,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         getPositionsByContract,
         getAllocationsByPosition,
         getProfessionalAllocation,
+        getStackCategoryById,
+        getSeniorityById,
+        getGeneralSeniorityById,
+        getProfessionalPrimaryStack,
       }}
     >
       {children}

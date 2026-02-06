@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { Stack, StackCategory } from '@/types';
+import { Stack } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,22 +46,12 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Layers, Search } from 'lucide-react';
 
-const categoryLabels: Record<StackCategory, string> = {
-  development: 'Desenvolvimento',
-  qa: 'QA',
-  management: 'Gestão',
-};
-
-const categoryColors: Record<StackCategory, string> = {
-  development: 'bg-primary text-primary-foreground',
-  qa: 'bg-info text-info-foreground',
-  management: 'bg-warning text-warning-foreground',
-};
-
 export default function Stacks() {
   const { 
     stacks, 
+    stackCategories,
     stackDistributions,
+    getStackCategoryById,
     addStack, 
     updateStack, 
     deleteStack 
@@ -76,14 +66,14 @@ export default function Stacks() {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    category: 'development' as StackCategory,
+    categoryId: '',
   });
 
   const filteredStacks = stacks.filter((stack) => {
     const matchesSearch = stack.name.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (categoryFilter === 'all') return matchesSearch;
-    return matchesSearch && stack.category === categoryFilter;
+    return matchesSearch && stack.categoryId === categoryFilter;
   });
 
   const getStackDistribution = (stackId: string) => {
@@ -95,13 +85,13 @@ export default function Stacks() {
       setEditingStack(stack);
       setFormData({
         name: stack.name,
-        category: stack.category,
+        categoryId: stack.categoryId,
       });
     } else {
       setEditingStack(null);
       setFormData({
         name: '',
-        category: 'development',
+        categoryId: stackCategories[0]?.id || '',
       });
     }
     setIsDialogOpen(true);
@@ -110,10 +100,10 @@ export default function Stacks() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name) {
+    if (!formData.name || !formData.categoryId) {
       toast({
-        title: 'Campo obrigatório',
-        description: 'O nome da stack é obrigatório.',
+        title: 'Campos obrigatórios',
+        description: 'Nome e categoria são obrigatórios.',
         variant: 'destructive',
       });
       return;
@@ -154,7 +144,7 @@ export default function Stacks() {
         <div>
           <h1 className="text-3xl font-bold">Stacks</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie as stacks e posições disponíveis
+            Gerencie as stacks e tecnologias disponíveis
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -185,24 +175,26 @@ export default function Stacks() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    placeholder="Ex: React Developer"
+                    placeholder="Ex: React, Node.js, Python"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="category">Categoria</Label>
+                  <Label htmlFor="category">Categoria *</Label>
                   <Select
-                    value={formData.category}
-                    onValueChange={(value: StackCategory) =>
-                      setFormData({ ...formData, category: value })
+                    value={formData.categoryId}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, categoryId: value })
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione uma categoria" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="development">Desenvolvimento</SelectItem>
-                      <SelectItem value="qa">QA</SelectItem>
-                      <SelectItem value="management">Gestão</SelectItem>
+                      {stackCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -241,9 +233,11 @@ export default function Stacks() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as categorias</SelectItem>
-            <SelectItem value="development">Desenvolvimento</SelectItem>
-            <SelectItem value="qa">QA</SelectItem>
-            <SelectItem value="management">Gestão</SelectItem>
+            {stackCategories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -279,6 +273,7 @@ export default function Stacks() {
               ) : (
                 filteredStacks.map((stack) => {
                   const distribution = getStackDistribution(stack.id);
+                  const category = getStackCategoryById(stack.categoryId);
                   const occupancyRate = distribution && distribution.positionCount > 0
                     ? ((distribution.filledPositions / distribution.positionCount) * 100).toFixed(0)
                     : '0';
@@ -287,8 +282,8 @@ export default function Stacks() {
                     <TableRow key={stack.id}>
                       <TableCell className="font-medium">{stack.name}</TableCell>
                       <TableCell>
-                        <Badge className={categoryColors[stack.category]}>
-                          {categoryLabels[stack.category]}
+                        <Badge variant="secondary">
+                          {category?.name || 'Sem categoria'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">

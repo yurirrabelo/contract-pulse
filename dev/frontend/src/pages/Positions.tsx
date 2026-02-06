@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { Position } from '@/types';
 import { formatDate } from '@/lib/storage';
+import { isAllocationActive } from '@/lib/allocation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -45,37 +45,31 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Briefcase, Search } from 'lucide-react';
+import { Pencil, Trash2, Briefcase, Search, UserPlus, UserMinus } from 'lucide-react';
 
 export default function Positions() {
   const { 
     positions, 
     contracts, 
     stacks,
+    professionals,
+    allocations,
     getContractById, 
     getClientById,
     getStackById,
-    addPosition, 
+    getProfessionalById,
     updatePosition, 
-    deletePosition 
+    deletePosition,
+    addAllocation,
+    deleteAllocation,
   } = useData();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    contractId: '',
-    title: '',
-    stackId: '',
-    status: 'open' as 'open' | 'filled',
-    startDate: '',
-    endDate: '',
-    allocationPercentage: 100,
-  });
 
   const filteredPositions = positions.filter((position) => {
     const contract = getContractById(position.contractId);
@@ -85,67 +79,85 @@ export default function Positions() {
     const matchesSearch = 
       position.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      stack?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      stack?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contract?.projectName?.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (statusFilter === 'all') return matchesSearch;
     return matchesSearch && position.status === statusFilter;
   });
 
-  const handleOpenDialog = (position?: Position) => {
-    if (position) {
-      setEditingPosition(position);
-      setFormData({
-        contractId: position.contractId,
-        title: position.title,
-        stackId: position.stackId,
-        status: position.status,
-        startDate: position.startDate,
-        endDate: position.endDate,
-        allocationPercentage: position.allocationPercentage || 100,
-      });
-    } else {
-      setEditingPosition(null);
-      setFormData({
-        contractId: '',
-        title: '',
-        stackId: '',
-        status: 'open',
-        startDate: '',
-        endDate: '',
-        allocationPercentage: 100,
-      });
-    }
-    setIsDialogOpen(true);
+  // Get allocation for a position
+  const getPositionAllocation = (position: Position) => {
+    return allocations.find(
+      a => a.positionId === position.id && isAllocationActive(a, { position, at: new Date() })
+    );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Get available professionals (not fully allocated)
+  const getAvailableProfessionals = () => {
+    return professionals.filter(p => {
+      // Get all current allocations for this professional
+      const profAllocations = allocations.filter(a => 
+        a.professionalId === p.id && 
+        (!a.endDate || new Date(a.endDate) >= new Date())
+      );
+      const totalAllocation = profAllocations.reduce((sum, a) => sum + a.allocationPercentage, 0);
+      return totalAllocation < 100 && (p.status === 'idle' || p.status === 'partial');
+    });
+  };
 
-    if (!formData.contractId || !formData.title || !formData.stackId) {
-      toast({
-        title: 'Campos obrigatórios',
-        description: 'Preencha todos os campos obrigatórios.',
-        variant: 'destructive',
-      });
+  const handleOpenAssignDialog = (position: Position) => {
+    setSelectedPosition(position);
+    setSelectedProfessionalId('');
+    setIsAssignDialogOpen(true);
+  };
+
+  const handleAssignProfessional = () => {
+    if (!selectedPosition || !selectedProfessionalId) {
+      toast({ title: 'Selecione um profissional', variant: 'destructive' });
       return;
     }
 
-    if (editingPosition) {
-      updatePosition(editingPosition.id, formData);
+    // Create allocation
+    addAllocation({
+      professionalId: selectedProfessionalId,
+      positionId: selectedPosition.id,
+      startDate: selectedPosition.startDate,
+      endDate: selectedPosition.endDate,
+      allocationPercentage: selectedPosition.allocationPercentage,
+    });
+
+    // Update position status to filled
+    updatePosition(selectedPosition.id, { status: 'filled' });
+
+    // Status do profissional é derivado automaticamente — não precisa chamar updateProfessional
+
+    toast({
+      title: 'Profissional vinculado',
+      description: 'O profissional foi alocado na vaga com sucesso.',
+    });
+
+    setIsAssignDialogOpen(false);
+    setSelectedPosition(null);
+    setSelectedProfessionalId('');
+  };
+
+  const handleUnassignProfessional = (position: Position) => {
+    const allocation = getPositionAllocation(position);
+    if (allocation) {
+      // Delete the allocation
+      deleteAllocation(allocation.id);
+      
+      // Update position status to open
+      updatePosition(position.id, { status: 'open' });
+
+      // Status do profissional é derivado automaticamente
+
       toast({
-        title: 'Vaga atualizada',
-        description: 'As informações foram salvas com sucesso.',
-      });
-    } else {
-      addPosition(formData);
-      toast({
-        title: 'Vaga criada',
-        description: 'A nova vaga foi adicionada com sucesso.',
+        title: 'Profissional desvinculado',
+        description: 'A vaga está novamente aberta.',
       });
     }
-
-    setIsDialogOpen(false);
-    setEditingPosition(null);
   };
 
   const handleDelete = () => {
@@ -159,146 +171,17 @@ export default function Positions() {
     }
   };
 
+  const availableProfessionals = getAvailableProfessionals();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Vagas</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie as vagas e posições dos contratos
+            Gerencie as vagas e vincule profissionais
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Vaga
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingPosition ? 'Editar Vaga' : 'Nova Vaga'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingPosition
-                  ? 'Atualize as informações da vaga.'
-                  : 'Preencha os dados para cadastrar uma nova vaga.'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="contract">Contrato *</Label>
-                  <Select
-                    value={formData.contractId}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, contractId: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um contrato" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contracts.map((contract) => {
-                        const client = getClientById(contract.clientId);
-                        return (
-                          <SelectItem key={contract.id} value={contract.id}>
-                            {contract.contractNumber} - {client?.name}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="title">Título da Vaga *</Label>
-                  <Input
-                    id="title"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    placeholder="Ex: Senior React Developer"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="stack">Stack *</Label>
-                  <Select
-                    value={formData.stackId}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, stackId: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma stack" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stacks.map((stack) => (
-                        <SelectItem key={stack.id} value={stack.id}>
-                          {stack.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value: 'open' | 'filled') =>
-                      setFormData({ ...formData, status: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">Aberta</SelectItem>
-                      <SelectItem value="filled">Preenchida</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Data de Início</Label>
-                    <Input
-                      id="startDate"
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, startDate: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate">Data de Fim</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, endDate: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  {editingPosition ? 'Salvar' : 'Criar'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Filters */}
@@ -306,7 +189,7 @@ export default function Positions() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por título, cliente ou stack..."
+            placeholder="Buscar por título, cliente, projeto ou stack..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -334,14 +217,16 @@ export default function Positions() {
                 <TableHead>Contrato / Cliente</TableHead>
                 <TableHead>Stack</TableHead>
                 <TableHead>Período</TableHead>
+                <TableHead>%</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
+                <TableHead>Profissional</TableHead>
+                <TableHead className="w-[120px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPositions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
                       <Briefcase className="h-8 w-8 text-muted-foreground" />
                       <p className="text-muted-foreground">
@@ -357,6 +242,8 @@ export default function Positions() {
                   const contract = getContractById(position.contractId);
                   const client = contract ? getClientById(contract.clientId) : null;
                   const stack = getStackById(position.stackId);
+                  const allocation = getPositionAllocation(position);
+                  const professional = allocation ? getProfessionalById(allocation.professionalId) : null;
 
                   return (
                     <TableRow key={position.id}>
@@ -365,6 +252,9 @@ export default function Positions() {
                         <div className="text-sm">
                           <div className="font-mono">{contract?.contractNumber}</div>
                           <div className="text-muted-foreground">{client?.name}</div>
+                          {contract?.projectName && (
+                            <div className="text-xs text-muted-foreground">{contract.projectName}</div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -378,6 +268,7 @@ export default function Positions() {
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell>{position.allocationPercentage}%</TableCell>
                       <TableCell>
                         <Badge 
                           variant={position.status === 'filled' ? 'default' : 'secondary'}
@@ -387,14 +278,34 @@ export default function Positions() {
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {professional ? (
+                          <div className="text-sm font-medium">{professional.name}</div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDialog(position)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
+                          {position.status === 'open' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAssignDialog(position)}
+                              className="gap-1"
+                            >
+                              <UserPlus className="h-4 w-4" />
+                              Vincular
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleUnassignProfessional(position)}
+                              title="Desvincular profissional"
+                            >
+                              <UserMinus className="h-4 w-4 text-warning" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -413,14 +324,67 @@ export default function Positions() {
         </CardContent>
       </Card>
 
+      {/* Assign Professional Dialog */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vincular Profissional</DialogTitle>
+            <DialogDescription>
+              {selectedPosition && (
+                <>Selecione um profissional para a vaga <strong>{selectedPosition.title}</strong></>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {availableProfessionals.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                Não há profissionais disponíveis para alocação.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Profissional</Label>
+                <Select value={selectedProfessionalId || 'none'} onValueChange={(v) => setSelectedProfessionalId(v === 'none' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um profissional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecione</SelectItem>
+                    {availableProfessionals.map((prof) => {
+                      const profAllocations = allocations.filter(a => 
+                        a.professionalId === prof.id && 
+                        (!a.endDate || new Date(a.endDate) >= new Date())
+                      );
+                      const currentAllocation = profAllocations.reduce((sum, a) => sum + a.allocationPercentage, 0);
+                      
+                      return (
+                        <SelectItem key={prof.id} value={prof.id}>
+                          {prof.name} ({100 - currentAllocation}% disponível)
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAssignProfessional} disabled={!selectedProfessionalId}>
+              Vincular
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir vaga?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. A vaga será removida
-              permanentemente do sistema.
+              Esta ação não pode ser desfeita. A vaga e sua alocação serão removidas permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

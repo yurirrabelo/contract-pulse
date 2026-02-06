@@ -34,14 +34,10 @@ const statusConfig = {
   expired: { label: 'Encerrado', className: 'bg-muted text-muted-foreground' },
 };
 
-const categoryLabels = {
-  development: 'Dev',
-  qa: 'QA',
-  management: 'Gestão',
-};
+// Dynamic category labels will be fetched from context
 
 export default function Teams() {
-  const { teamViews, contracts } = useData();
+  const { teamViews, contracts, stackCategories } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | ContractType>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -87,12 +83,13 @@ export default function Teams() {
       ? (team.filledPositions / team.totalPositions) * 100 
       : 0;
 
-    // Group members by stack category for timeline-like view
+    // Group members by category name for timeline-like view
     const membersByCategory = team.members.reduce((acc, member) => {
-      if (!acc[member.stackCategory]) {
-        acc[member.stackCategory] = [];
+      const categoryKey = member.categoryName || 'Outros';
+      if (!acc[categoryKey]) {
+        acc[categoryKey] = [];
       }
-      acc[member.stackCategory].push(member);
+      acc[categoryKey].push(member);
       return acc;
     }, {} as Record<string, typeof team.members>);
 
@@ -147,15 +144,15 @@ export default function Teams() {
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium">Composição do Time</h4>
                   
-                  {['management', 'development', 'qa'].map((category) => {
-                    const members = membersByCategory[category] || [];
+                  {Object.keys(membersByCategory).map((categoryName) => {
+                    const members = membersByCategory[categoryName] || [];
                     if (members.length === 0) return null;
                     
                     return (
-                      <div key={category} className="space-y-2">
+                      <div key={categoryName} className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs">
-                            {categoryLabels[category as keyof typeof categoryLabels]}
+                            {categoryName}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             {members.length} profissional(is)
@@ -212,8 +209,8 @@ export default function Teams() {
                         const duration = ((memberEnd - memberStart) / totalDuration) * 100;
                         
                         const categoryColor = 
-                          member.stackCategory === 'management' ? 'bg-info' :
-                          member.stackCategory === 'qa' ? 'bg-warning' : 'bg-primary';
+                          member.categoryName?.toLowerCase().includes('gestão') ? 'bg-info' :
+                          member.categoryName?.toLowerCase().includes('qa') ? 'bg-warning' : 'bg-primary';
                         
                         return (
                           <div key={`${member.professionalId}-${idx}`} className="flex items-center gap-2 h-6">
